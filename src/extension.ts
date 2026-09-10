@@ -23,8 +23,8 @@
  * `git.ts`; this file is deliberately thin, because nothing in it can run under `node --test`.
  */
 
-import { readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { readdirSync, readFileSync, rmSync, statSync, utimesSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 
 import * as vscode from 'vscode';
 
@@ -200,11 +200,37 @@ export function activate(context: vscode.ExtensionContext): void {
   sweepScratch(scratchRoot);
   const session = join(scratchRoot, `session-${process.pid}-${Date.now()}`);
 
+  /**
+   * Marks the session directory as in use.
+   *
+   * A directory's mtime only tracks its *direct* children, so writing `session/HEAD/parser.ts`
+   * bumps `session/HEAD` and leaves `session` frozen at creation time. A window left open past
+   * `SCRATCH_MAX_AGE_MS` would otherwise have its still-referenced files swept by the next one.
+   */
+  function touchSession(): void {
+    try {
+      const now = new Date();
+      utimesSync(session, now, now);
+    } catch {
+      // Nothing has been written to it yet, or it is gone; either way there is nothing to protect.
+    }
+  }
+
   /** Materialises `uri` as of `ref` and diffs it against the file on disk. */
   async function diffAgainstRevision(uri: vscode.Uri, ref: string): Promise<void> {
     const root = await repositoryRoot(uri.fsPath);
-    const bytes = await showAtRevision(root, ref, relativeToRoot(root, uri.fsPath));
-    const materialized = materialize(bytes, uri.fsPath, revisionDirectory(session, ref));
+    const relative = relativeToRoot(root, uri.fsPath);
+    const bytes = await showAtRevision(root, ref, relative);
+    // The file's own directory goes under the revision directory: without it, `src/tui/mod.rs`
+    // and `src/diff/mod.rs` both land on `HEAD/mod.rs`, and the second diff overwrites a file the
+    // first one still has open - VS Code reloads that pane with the wrong content. `dirname` of a
+    // repository-root file is `.`, which `join` absorbs.
+    const materialized = materialize(
+      bytes,
+      uri.fsPath,
+      join(revisionDirectory(session, ref), dirname(relative))
+    );
+    touchSession();
     await diffSides(
       fileSide(materialized, vscode.ViewColumn.One),
       { diffPath: uri.fsPath, display: uri, column: vscode.ViewColumn.Two },
@@ -236,6 +262,7 @@ export function activate(context: vscode.ExtensionContext): void {
       document.uri.fsPath,
       join(session, 'buffer', String(Date.now()))
     );
+    touchSession();
 
     await diffSides(
       fileSide(savedPath, vscode.ViewColumn.One),
@@ -252,11 +279,14 @@ export function activate(context: vscode.ExtensionContext): void {
    * worth an action button, since there is something concrete to do about it.
    */
   async function report(error: unknown): Promise<void> {
+    // Only a CodeDiffError gets the install offer. A GitError saying "git was not found on PATH"
+    // matches the same words but is about a different program entirely, and offering codediff's
+    // install page plus the `codediff.binaryPath` setting would send the user somewhere useless.
+    if (error instanceof CodeDiffError && /not (?:be )?found|is not installed|ENOENT/i.test(error.message)) {
+      await offerInstall(error.message);
+      return;
+    }
     if (error instanceof CodeDiffError || error instanceof GitError) {
-      if (/not (?:be )?found|is not installed|ENOENT/i.test(error.message)) {
-        await offerInstall(error.message);
-        return;
-      }
       void vscode.window.showErrorMessage(error.message);
       return;
     }

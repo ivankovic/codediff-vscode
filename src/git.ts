@@ -110,8 +110,12 @@ export async function showAtRevision(root: string, ref: string, relPath: string)
  * the same reason - and codediff's README says so about jj: it needs each file's real path and
  * extension for language detection to work.
  *
- * The caller supplies `intoDir` per revision (see `revisionDirectory`), so two revisions of one
- * file never collide despite sharing a name.
+ * `intoDir` has to disambiguate everything the basename no longer can. Two axes collide: the same
+ * file at two revisions, and two *different* files sharing a basename at one revision - `mod.rs`
+ * appears dozens of times in a Rust tree, as do `index.ts`, `__init__.py` and `main.go`. Callers
+ * therefore build it from both the revision (`revisionDirectory`) and the file's directory within
+ * the repository. Getting this wrong overwrites a file an editor is already showing, and VS Code
+ * reloads that pane with the other file's content.
  */
 export function materialize(bytes: Buffer, originalPath: string, intoDir: string): string {
   mkdirSync(intoDir, { recursive: true });

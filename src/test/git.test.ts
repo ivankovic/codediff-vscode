@@ -154,6 +154,21 @@ describe('materialize', () => {
     assert.deepEqual([...readFileSync(written)], [...bytes]);
   });
 
+  it('keeps two different files that share a basename apart', () => {
+    // The other collision axis, and the common one: `mod.rs` appears dozens of times in a Rust
+    // tree. Both files at one revision must not land on the same path, or the second diff
+    // overwrites a file the first still has open and VS Code reloads that pane with the wrong
+    // content. The caller disambiguates with the file's directory inside the repository.
+    const revision = revisionDirectory(join(scratch, 'shared-basename'), 'HEAD');
+    const tui = materialize(Buffer.from('tui\n'), '/r/src/tui/mod.rs', join(revision, 'src/tui'));
+    const diff = materialize(Buffer.from('diff\n'), '/r/src/diff/mod.rs', join(revision, 'src/diff'));
+    assert.notEqual(tui, diff);
+    assert.equal(readFileSync(tui, 'utf8'), 'tui\n');
+    assert.equal(readFileSync(diff, 'utf8'), 'diff\n');
+    // Both still end in the real basename, which is what codediff reads for the grammar.
+    assert.ok(tui.endsWith('mod.rs') && diff.endsWith('mod.rs'));
+  });
+
   it('lets two revisions of one file coexist under different directories', () => {
     const base = join(scratch, 'two-revisions');
     const head = materialize(Buffer.from('old\n'), 'parser.ts', revisionDirectory(base, 'HEAD'));
