@@ -6,3 +6,7 @@ out/
 # Written by the codediff binary itself into whatever directory it runs in - see the note in
 # CONTRIBUTING.md. Running the integration test from this checkout drops one here.
 .codediff.toml
+
+# Downloaded by scripts/fetch-binary.mjs at package time. A release binary is ~37 MB and belongs
+# to the codediff repository's releases, not to this repository's history.
+bin/

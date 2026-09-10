@@ -27,16 +27,39 @@ can run outside a VS Code host; treat those parts as reviewed rather than proven
 | Diffing against a git revision, from the SCM view | ✅ works |
 | Diffing the working copy against the last save | ✅ works |
 | Install prompt when the binary is missing | ✅ works |
-| Bundled binary | ❌ not implemented — codediff must be on `PATH`. Shipping one would mean a VSIX per platform. |
+| Bundled binary, per platform | ✅ built, not published — see [Requirements](#requirements) |
 
 ## Requirements
 
-The `codediff` binary, on `PATH` or pointed at by the `codediff.binaryPath` setting. See
+The `codediff` binary. Platform-specific builds of this extension **bundle it**, so on those there
+is nothing to install:
+
+| Platform | Bundled? |
+| --- | --- |
+| Linux x64 / arm64 | ✅ |
+| macOS Intel / Apple silicon | ✅ |
+| Windows x64 | ✅ |
+| Everything else — Windows on ARM, Alpine/musl containers | ❌ falls back to `PATH` |
+
+Alpine is deliberately unbundled: a `linux-x64` build carries a glibc binary that dies on musl with
+an unreadable loader error, so those users get the binary-free fallback build and the `PATH` lookup
+instead.
+
+**Which binary gets run**, in order:
+
+1. `codediff.binaryPath`, if you have set it to anything other than the default. It wins
+   unconditionally, so point it at your own build to use that.
+2. The bundled binary, if this build carries one.
+3. `codediff` on `PATH`.
+
+Step 2 exists for one failure in particular: a VS Code launched from Finder or the Dock does not
+inherit a login shell's `PATH`, so a `codediff` installed to `~/.cargo/bin` is invisible to it and
+the extension reports a missing binary you can plainly run in a terminal.
+
+If you need to install it yourself, see
 [codediff's installation instructions](https://github.com/ivankovic/codediff#installation) —
 `cargo install codediff`, a pre-built binary from a release, `nix run github:ivankovic/codediff`, or
 one of the distribution packages.
-
-The extension shells out to it and never bundles it.
 
 ## Usage
 

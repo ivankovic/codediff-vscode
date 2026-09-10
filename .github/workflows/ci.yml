@@ -53,8 +53,12 @@ jobs:
       # already cover except for the spawn.
       - run: npm test
 
+  # Only the target-less fallback VSIX is built here. The five platform-specific ones need a
+  # codediff release to download from, which would make every pull request depend on a published
+  # tag of another repository; they are built in release.yml, on a tag, where that dependency is
+  # real anyway.
   package:
-    name: vsce package
+    name: vsce package (fallback, no binary)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -66,6 +70,19 @@ jobs:
       # Catches a broken manifest, a missing file, or a .vscodeignore that excludes something the
       # extension needs - none of which tsc or the tests can see.
       - run: npx --yes @vscode/vsce package --out codediff.vsix
+
+      # The fallback must carry NO binary: it is what the Marketplace serves to architectures with
+      # no build, and those users are meant to fall through to PATH. A binary leaking into it would
+      # be the wrong architecture for every one of them.
+      - name: Fallback VSIX carries no binary
+        run: |
+          if unzip -Z1 codediff.vsix | grep -q '^extension/bin/'; then
+            echo "::error::the target-less VSIX contains a bundled binary"
+            unzip -Z1 codediff.vsix | grep '^extension/bin/'
+            exit 1
+          fi
+          echo "confirmed: no extension/bin/ entries"
+
       - uses: actions/upload-artifact@v4
         with:
           name: vsix

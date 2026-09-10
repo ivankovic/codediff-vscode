@@ -3,6 +3,7 @@
   "displayName": "CodeDiff",
   "description": "Syntax-aware diff highlighting, backed by the codediff CLI",
   "version": "0.0.1",
+  "codediffVersion": "v0.0.13",
   "publisher": "ivankovic",
   "license": "AGPL-3.0-or-later",
   "author": "Marko Ivankovic",
@@ -103,7 +104,7 @@
         "codediff.binaryPath": {
           "type": "string",
           "default": "codediff",
-          "markdownDescription": "Path to (or name of) the `codediff` binary. Looked up on `PATH` when it is a bare name."
+          "markdownDescription": "Path to (or name of) the `codediff` binary. Leave at the default to use the binary bundled with this extension when there is one, falling back to `PATH`. Any other value wins over both, so point this at your own build to use it."
         },
         "codediff.renderMode": {
           "type": "string",
@@ -123,7 +124,8 @@
     "watch": "tsc -watch -p ./",
     "lint": "eslint src",
     "test": "npm run compile && node --test out/test/",
-    "vscode:prepublish": "npm run compile"
+    "vscode:prepublish": "npm run compile",
+    "fetch-binary": "node scripts/fetch-binary.mjs"
   },
   "devDependencies": {
     "@types/node": "^18.19.0",

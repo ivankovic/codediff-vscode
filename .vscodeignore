@@ -1,6 +1,6 @@
-# Everything the published extension does not need. Only `out/*.js`, package.json, README.md and
-# LICENSE ship; the TypeScript sources, the tests and the CI config are in the repository for
-# people, not for the VSIX.
+# Everything the published extension does not need. What ships is `out/*.js`, package.json,
+# README.md, LICENSE, and - in a platform-specific VSIX only - `bin/codediff`; the TypeScript
+# sources, the tests and the CI config are in the repository for people, not for the VSIX.
 #
 # No `!` negation lines here, deliberately: .vscodeignore matches last-rule-wins, so a trailing
 # `!out/**/*.js` would silently re-include the compiled tests excluded above it.
@@ -13,6 +13,9 @@ eslint.config.mjs
 .editorconfig
 .gitignore
 CONTRIBUTING.md
+# The download script runs at package time, before vsce reads this file; `bin/` is its output and
+# is the one thing here that MUST ship in a platform-specific VSIX.
+scripts/**
 **/*.map
 **/*.ts
 # Built into out/ by `npm test`; nothing can run them from inside a VSIX.

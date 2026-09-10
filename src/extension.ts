@@ -28,6 +28,7 @@ import { dirname, join } from 'node:path';
 
 import * as vscode from 'vscode';
 
+import { ensureExecutable, resolveBinary, type Resolution } from './binary';
 import { CodeDiffError, isBinaryAvailable, runDiff, type RenderMode } from './codediff';
 import { applyHunks, clear, createDecorationTypes, type DecorationTypes } from './decorations';
 import {
@@ -44,12 +45,24 @@ const INSTALL_URL = 'https://github.com/ivankovic/codediff#installation';
 /** How long an abandoned scratch directory survives. See `sweepScratch`. */
 const SCRATCH_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
-function configuration(): { binaryPath: string; renderMode: RenderMode } {
-  const config = vscode.workspace.getConfiguration('codediff');
-  return {
-    binaryPath: config.get<string>('binaryPath', 'codediff'),
-    renderMode: config.get<RenderMode>('renderMode', 'default'),
-  };
+function renderMode(): RenderMode {
+  return vscode.workspace.getConfiguration('codediff').get<RenderMode>('renderMode', 'default');
+}
+
+/**
+ * Which binary to run, re-resolved per call so a settings change takes effect without a reload.
+ *
+ * The chmod happens here rather than once at activation because the bundle only needs it when it
+ * is actually the thing being spawned, and a failure has to fall through to `PATH` rather than
+ * stop the extension loading - see `ensureExecutable`.
+ */
+function binary(extensionRoot: string): Resolution {
+  const configured = vscode.workspace.getConfiguration('codediff').get<string>('binaryPath');
+  const resolution = resolveBinary(extensionRoot, process.platform, configured);
+  if (resolution.source === 'bundled' && !ensureExecutable(resolution.command, process.platform)) {
+    return { command: 'codediff', source: 'path' };
+  }
+  return resolution;
 }
 
 /**
@@ -91,12 +104,18 @@ async function openSide(side: Side): Promise<vscode.TextEditor> {
  * two sides are one editor, and `setDecorations` needs a `TextEditorDecorationType` per real
  * editor. Two normal editors in two columns is what makes per-side highlighting possible at all.
  */
-async function diffSides(before: Side, after: Side, types: DecorationTypes): Promise<void> {
-  const { binaryPath, renderMode } = configuration();
+async function diffSides(
+  before: Side,
+  after: Side,
+  types: DecorationTypes,
+  extensionRoot: string
+): Promise<void> {
+  const { command } = binary(extensionRoot);
+  const mode = renderMode();
 
   const diff = await vscode.window.withProgress(
     { location: vscode.ProgressLocation.Window, title: 'CodeDiff: diffing…' },
-    () => runDiff(binaryPath, before.diffPath, after.diffPath, renderMode)
+    () => runDiff(command, before.diffPath, after.diffPath, mode)
   );
 
   if (diff.binary) {
@@ -189,6 +208,7 @@ function sweepScratch(root: string): void {
 
 export function activate(context: vscode.ExtensionContext): void {
   const types = createDecorationTypes();
+  const extensionRoot = context.extensionPath;
   // Registered on the context so VS Code disposes them with the extension; a leaked decoration
   // type keeps painting after a reload.
   for (const type of Object.values(types)) {
@@ -234,7 +254,8 @@ export function activate(context: vscode.ExtensionContext): void {
     await diffSides(
       fileSide(materialized, vscode.ViewColumn.One),
       { diffPath: uri.fsPath, display: uri, column: vscode.ViewColumn.Two },
-      types
+      types,
+      extensionRoot
     );
   }
 
@@ -267,7 +288,8 @@ export function activate(context: vscode.ExtensionContext): void {
     await diffSides(
       fileSide(savedPath, vscode.ViewColumn.One),
       { diffPath: bufferPath, display: document.uri, column: vscode.ViewColumn.Two },
-      types
+      types,
+      extensionRoot
     );
   }
 
@@ -330,7 +352,8 @@ export function activate(context: vscode.ExtensionContext): void {
       await diffSides(
         { diffPath: pair[0].fsPath, display: pair[0], column: vscode.ViewColumn.One },
         { diffPath: pair[1].fsPath, display: pair[1], column: vscode.ViewColumn.Two },
-        types
+        types,
+        extensionRoot
       );
     }),
 
@@ -375,10 +398,25 @@ export function activate(context: vscode.ExtensionContext): void {
   // Checked once here rather than before every diff: activation is already lazy (it happens on the
   // first command), so this costs one process at the moment the user first asks for something, and
   // tells them what is wrong before they wonder why nothing painted.
-  void isBinaryAvailable(configuration().binaryPath).then((available) => {
-    if (!available) {
+  const resolved = binary(extensionRoot);
+  void isBinaryAvailable(resolved.command).then((available) => {
+    if (available) {
+      return;
+    }
+    // Only the `path` case is worth an install offer. A bundled binary that fails to run is a
+    // broken package rather than a missing prerequisite, and an explicit setting that does not
+    // resolve is a typo in that setting - neither is fixed by codediff's install page.
+    if (resolved.source === 'path') {
       void offerInstall(
-        `CodeDiff: '${configuration().binaryPath}' was not found on PATH. The extension needs the codediff CLI.`
+        `CodeDiff: '${resolved.command}' was not found on PATH. The extension needs the codediff CLI.`
+      );
+    } else if (resolved.source === 'setting') {
+      void vscode.window.showErrorMessage(
+        `CodeDiff: the codediff.binaryPath setting points at '${resolved.command}', which could not be run.`
+      );
+    } else {
+      void vscode.window.showErrorMessage(
+        'CodeDiff: the bundled codediff binary could not be run. Reinstall the extension, or set codediff.binaryPath.'
       );
     }
   });

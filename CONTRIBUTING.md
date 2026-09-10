@@ -36,6 +36,7 @@ excludes something the extension needs — neither of which the other three can 
 | `src/columns.ts` | no | Imports **nothing**. Byte → UTF-16 conversion. |
 | `src/codediff.ts` | no | Spawning and JSON validation. |
 | `src/git.ts` | no | `rev-parse` / `git show`, and writing a blob out under its real basename. |
+| `src/binary.ts` | no | Which `codediff` to run: setting → bundled → `PATH`. |
 | `src/decorations.ts` | yes | Hunks → `TextEditorDecorationType`. |
 | `src/extension.ts` | yes | Commands and editor glue. |
 
@@ -83,6 +84,32 @@ apart from the spawn. Run it locally before touching anything about spawning or 
 * No `any`, and no `as SomeType` to silence the compiler on data that came from outside the
   process. `parseDiff` validates codediff's output at the boundary precisely so that nothing
   downstream has to guess.
+
+## Bundling the binary
+
+`scripts/fetch-binary.mjs <vsce-target>` downloads the codediff release pinned by
+`codediffVersion` in package.json into `bin/`, verifying it against that release's
+`SHA256SUMS.txt`. `bin/` is gitignored — it is a build input, not source.
+
+Two things here are easy to get wrong and are checked rather than assumed:
+
+* **The execute bit.** A VSIX is a ZIP, and ZIP carries Unix mode bits only if the writer sets
+  them; `vsce` does not reliably. A binary that lands without `+x` fails at spawn with `EACCES` on
+  the user's machine long after CI was green. `ensureExecutable` chmods at activation *and*
+  `release.yml` reads the mode back out of the packaged VSIX — the first masks a broken package,
+  only the second proves a good one.
+* **VS Code's target names are not Rust triples.** `linux-x64` ↔ `x86_64-unknown-linux-gnu`, and so
+  on. The mapping lives in `scripts/fetch-binary.mjs`; a test asserts the release workflow's matrix
+  and that table list the same targets, because a target in one but not the other either fails the
+  build or silently stops publishing a platform.
+
+The pinned version is `v0.0.13`, which does not exist yet: v0.0.12 predates both the
+`SHA256SUMS.txt` job and the `aarch64-unknown-linux-gnu` target in codediff's release workflow.
+Until that release is cut, `fetch-binary` fails with a 404 — deliberately, rather than quietly
+producing a VSIX with no binary.
+
+CI builds only the binary-free fallback VSIX, so a pull request never depends on a published tag of
+another repository. The five platform VSIXs are built in `release.yml`, on a tag.
 
 ## Publishing
 
