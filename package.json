@@ -1,0 +1,67 @@
+{
+  "name": "codediff",
+  "displayName": "CodeDiff",
+  "description": "Syntax-aware diff highlighting, backed by the codediff CLI",
+  "version": "0.0.1",
+  "publisher": "ivankovic",
+  "license": "AGPL-3.0-or-later",
+  "author": "Marko Ivankovic",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ivankovic/codediff-vscode.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ivankovic/codediff-vscode/issues"
+  },
+  "homepage": "https://github.com/ivankovic/codediff",
+  "categories": ["SCM Providers", "Other"],
+  "keywords": ["diff", "ast", "tree-sitter", "syntax-aware"],
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "main": "./out/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "commands": [
+      {
+        "command": "codediff.diffTwoFiles",
+        "title": "CodeDiff: Diff Two Files…"
+      },
+      {
+        "command": "codediff.clearDecorations",
+        "title": "CodeDiff: Clear Highlights"
+      }
+    ],
+    "configuration": {
+      "title": "CodeDiff",
+      "properties": {
+        "codediff.binaryPath": {
+          "type": "string",
+          "default": "codediff",
+          "markdownDescription": "Path to (or name of) the `codediff` binary. Looked up on `PATH` when it is a bare name."
+        },
+        "codediff.renderMode": {
+          "type": "string",
+          "enum": ["default", "minimal", "full"],
+          "default": "default",
+          "markdownDescription": "Which ranges codediff paints. `default` uses whatever is persisted in codediff's own config; `minimal` and `full` pass `--minimal`/`--full` and override it."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src",
+    "test": "npm run compile && node --test out/test/",
+    "vscode:prepublish": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "^18.19.0",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint": "^9.0.0",
+    "typescript": "^5.4.0"
+  }
+}

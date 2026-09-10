@@ -1,0 +1,8 @@
+node_modules/
+out/
+*.vsix
+.vscode-test/
+
+# Written by the codediff binary itself into whatever directory it runs in - see the note in
+# CONTRIBUTING.md. Running the integration test from this checkout drops one here.
+.codediff.toml

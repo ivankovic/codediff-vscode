@@ -1,0 +1,20 @@
+# Everything the published extension does not need. Only `out/*.js`, package.json, README.md and
+# LICENSE ship; the TypeScript sources, the tests and the CI config are in the repository for
+# people, not for the VSIX.
+#
+# No `!` negation lines here, deliberately: .vscodeignore matches last-rule-wins, so a trailing
+# `!out/**/*.js` would silently re-include the compiled tests excluded above it.
+.github/**
+.vscode-test/**
+src/**
+node_modules/**
+tsconfig.json
+eslint.config.mjs
+.editorconfig
+.gitignore
+CONTRIBUTING.md
+**/*.map
+**/*.ts
+# Built into out/ by `npm test`; nothing can run them from inside a VSIX.
+out/test/**
+.codediff.toml

@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# One job per gate, matching the main codediff repository, so a red badge says which gate broke
+# without opening the log.
+jobs:
+  compile:
+    name: tsc
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx tsc -p ./ --noEmit
+
+  lint:
+    name: eslint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+
+  test:
+    name: tests (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 18 is what VS Code 1.85 ships as its extension host; 20 is what newer builds use. Both
+        # have to work, because the extension runs on whichever the user's VS Code has.
+        node: [18, 20]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      # `src/test/integration.test.ts` skips itself here: codediff is not installed, and building
+      # it would add minutes of Rust compilation to every run for one assertion the unit tests
+      # already cover except for the spawn.
+      - run: npm test
+
+  package:
+    name: vsce package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # Catches a broken manifest, a missing file, or a .vscodeignore that excludes something the
+      # extension needs - none of which tsc or the tests can see.
+      - run: npx --yes @vscode/vsce package --out codediff.vsix
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vsix
+          path: codediff.vsix
