@@ -35,6 +35,7 @@ excludes something the extension needs — neither of which the other three can 
 | --- | --- | --- |
 | `src/columns.ts` | no | Imports **nothing**. Byte → UTF-16 conversion. |
 | `src/codediff.ts` | no | Spawning and JSON validation. |
+| `src/git.ts` | no | `rev-parse` / `git show`, and writing a blob out under its real basename. |
 | `src/decorations.ts` | yes | Hunks → `TextEditorDecorationType`. |
 | `src/extension.ts` | yes | Commands and editor glue. |
 
@@ -60,6 +61,13 @@ mixed line. Do not delete those for being slow — the whole file runs in millis
 dotfile in whatever directory it runs in — there is no user-level config yet — so any invocation
 from here leaves one behind. It is in `.gitignore` and `.vscodeignore`; delete it freely, and do
 not commit it.
+
+`src/test/git.test.ts` builds a real throwaway repository in a temp directory and, unlike the
+integration test below, does **not** skip when its dependency is missing: git is a hard requirement
+of the commands it covers, so a machine without it should fail here rather than quietly pass. Two of
+its cases exist for reasons that are easy to undo by accident — `git show` output is read as a
+`Buffer` because decoding it as UTF-8 corrupts any file that is not UTF-8, and the materialised file
+keeps its original basename because codediff's language detection reads the path.
 
 `src/test/integration.test.ts` runs the real binary and **skips itself when codediff is not on
 `PATH`**, which includes CI. It is a local-development check, not a gate: installing codediff in CI

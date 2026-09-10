@@ -13,8 +13,10 @@ extension paints that verdict onto real editors as decorations.
 
 ## Status
 
-Early. The core works and is tested end to end; the integrations people will eventually want are
-not there yet. Concretely:
+Early, but complete enough to use. Everything below the editor — spawning codediff, parsing its
+output, converting its byte columns, reading blobs out of git — is covered by tests that run in CI.
+The editor glue itself (decorations, menus, prompts) has no automated coverage, because none of it
+can run outside a VS Code host; treat those parts as reviewed rather than proven.
 
 | | |
 | --- | --- |
@@ -22,9 +24,10 @@ not there yet. Concretely:
 | Insert / delete / update / move highlighting | ✅ works |
 | "Moved to line N" on hover | ✅ works |
 | Correct columns on non-ASCII lines | ✅ works, and tested |
-| Diffing against a git revision, from the SCM view | ❌ not implemented |
-| Diffing the working copy against the last save | ❌ not implemented |
-| Bundled binary / install prompt | ❌ not implemented — codediff must be on `PATH` |
+| Diffing against a git revision, from the SCM view | ✅ works |
+| Diffing the working copy against the last save | ✅ works |
+| Install prompt when the binary is missing | ✅ works |
+| Bundled binary | ❌ not implemented — codediff must be on `PATH`. Shipping one would mean a VSIX per platform. |
 
 ## Requirements
 
@@ -37,9 +40,22 @@ The extension shells out to it and never bundles it.
 
 ## Usage
 
-* **CodeDiff: Diff Two Files…** — pick a before and an after file; they open side by side with the
-  diff painted on both.
-* **CodeDiff: Clear Highlights** — remove every highlight this extension placed.
+| Command | What it diffs |
+| --- | --- |
+| `CodeDiff: Diff Two Files…` | Two files you pick. |
+| `CodeDiff: Diff With HEAD` | The committed version against your working copy. |
+| `CodeDiff: Diff With Revision…` | Any ref `git show` accepts — a branch, a tag, `HEAD~3` — against your working copy. |
+| `CodeDiff: Diff With Last Saved` | What is on disk against what you have typed but not saved. |
+| `CodeDiff: Clear Highlights` | Removes the painting from every visible editor. |
+
+The three git-aware commands are also on the right-click menu of a file in the **Source Control**
+view and of an editor tab. In every one of them the left pane is the *before* side, matching
+`codediff.nvim`'s `diff_this`.
+
+Files pulled out of git are written to the extension's own storage directory under their real
+basename — `HEAD/parser.ts`, not a scratch name — because codediff picks a tree-sitter grammar from
+the path. A blob written to a nameless temp file gets no grammar and silently falls back to a plain
+line diff. They are swept a day later, at the next activation.
 
 ## Settings
 

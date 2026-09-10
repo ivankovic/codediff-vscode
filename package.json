@@ -14,8 +14,16 @@
     "url": "https://github.com/ivankovic/codediff-vscode/issues"
   },
   "homepage": "https://github.com/ivankovic/codediff",
-  "categories": ["SCM Providers", "Other"],
-  "keywords": ["diff", "ast", "tree-sitter", "syntax-aware"],
+  "categories": [
+    "SCM Providers",
+    "Other"
+  ],
+  "keywords": [
+    "diff",
+    "ast",
+    "tree-sitter",
+    "syntax-aware"
+  ],
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -25,13 +33,70 @@
     "commands": [
       {
         "command": "codediff.diffTwoFiles",
-        "title": "CodeDiff: Diff Two Files…"
+        "title": "Diff Two Files\u2026",
+        "category": "CodeDiff"
+      },
+      {
+        "command": "codediff.diffWithHead",
+        "title": "Diff With HEAD",
+        "category": "CodeDiff"
+      },
+      {
+        "command": "codediff.diffWithRevision",
+        "title": "Diff With Revision\u2026",
+        "category": "CodeDiff"
+      },
+      {
+        "command": "codediff.diffWithSaved",
+        "title": "Diff With Last Saved",
+        "category": "CodeDiff"
       },
       {
         "command": "codediff.clearDecorations",
-        "title": "CodeDiff: Clear Highlights"
+        "title": "Clear Highlights",
+        "category": "CodeDiff"
       }
     ],
+    "menus": {
+      "scm/resourceState/context": [
+        {
+          "command": "codediff.diffWithHead",
+          "when": "scmProvider == git",
+          "group": "codediff@1"
+        },
+        {
+          "command": "codediff.diffWithRevision",
+          "when": "scmProvider == git",
+          "group": "codediff@2"
+        }
+      ],
+      "editor/title/context": [
+        {
+          "command": "codediff.diffWithHead",
+          "when": "resourceScheme == file",
+          "group": "codediff@1"
+        },
+        {
+          "command": "codediff.diffWithSaved",
+          "when": "resourceScheme == file",
+          "group": "codediff@2"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "codediff.diffWithHead",
+          "when": "editorIsOpen"
+        },
+        {
+          "command": "codediff.diffWithRevision",
+          "when": "editorIsOpen"
+        },
+        {
+          "command": "codediff.diffWithSaved",
+          "when": "editorIsOpen"
+        }
+      ]
+    },
     "configuration": {
       "title": "CodeDiff",
       "properties": {
@@ -42,7 +107,11 @@
         },
         "codediff.renderMode": {
           "type": "string",
-          "enum": ["default", "minimal", "full"],
+          "enum": [
+            "default",
+            "minimal",
+            "full"
+          ],
           "default": "default",
           "markdownDescription": "Which ranges codediff paints. `default` uses whatever is persisted in codediff's own config; `minimal` and `full` pass `--minimal`/`--full` and override it."
         }

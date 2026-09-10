@@ -156,3 +156,19 @@ export function runDiff(
     );
   });
 }
+
+/**
+ * Whether `binaryPath` resolves to something runnable.
+ *
+ * Probes with `--help` rather than `--version`: `--version` only exists in builds from 2026-09-10
+ * onwards, and reporting "codediff is not installed" to someone running a slightly older binary
+ * would be worse than not checking at all. Only ENOENT means absent - any other failure (a non-zero
+ * exit, a parse error, an unreadable flag) still proves the executable is there.
+ */
+export function isBinaryAvailable(binaryPath: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    execFile(binaryPath, ['--help'], (error) => {
+      resolve((error as NodeJS.ErrnoException | null)?.code !== 'ENOENT');
+    });
+  });
+}

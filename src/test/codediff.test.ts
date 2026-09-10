@@ -21,7 +21,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { buildArguments, CodeDiffError, parseDiff } from '../codediff';
+import { buildArguments, CodeDiffError, isBinaryAvailable, parseDiff } from '../codediff';
 
 test('default mode passes no render flag, so codediff uses its own persisted setting', () => {
   assert.deepEqual(buildArguments('a.rs', 'b.rs', 'default'), ['--mode', 'json', 'a.rs', 'b.rs']);
@@ -77,4 +77,13 @@ test('JSON of the wrong shape is rejected at the boundary, not deep in the decor
   assert.throws(() => parseDiff('null'), CodeDiffError);
   assert.throws(() => parseDiff('{"before":{"hunks":[]}}'), CodeDiffError);
   assert.throws(() => parseDiff('{"before":{"hunks":[]},"after":{}}'), CodeDiffError);
+});
+
+// `node` is guaranteed present here: it is running this test.
+test('isBinaryAvailable is true for a binary that exists', async () => {
+  assert.equal(await isBinaryAvailable(process.execPath), true);
+});
+
+test('isBinaryAvailable is false for a name that is not on PATH', async () => {
+  assert.equal(await isBinaryAvailable('codediff-does-not-exist-a1b2c3'), false);
 });
