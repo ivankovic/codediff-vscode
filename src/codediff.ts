@@ -119,18 +119,26 @@ export function buildArguments(before: string, after: string, mode: RenderMode):
  * `execFile`, not `exec`: the paths are user data and must never reach a shell. `maxBuffer` is
  * raised well past the 1 MB default because the JSON scales with the number of changed ranges, and
  * the default truncates silently enough to look like a parse bug.
+ *
+ * `cwd` is not cosmetic. codediff resolves its own configuration from the nearest `.codediff.toml`
+ * at or above the working directory, so with `mode` left at `default` - where the whole point is
+ * to defer to that configuration - the working directory decides which render options apply, and
+ * therefore which hunks come back. Inherited from the extension host it is whatever directory VS
+ * Code happened to be started in, which makes the default painting differ between two launches of
+ * the same window. Callers pass the directory of the file being diffed instead.
  */
 export function runDiff(
   binaryPath: string,
   before: string,
   after: string,
-  mode: RenderMode = 'default'
+  mode: RenderMode = 'default',
+  cwd?: string
 ): Promise<JsonDiff> {
   return new Promise((resolve, reject) => {
     execFile(
       binaryPath,
       buildArguments(before, after, mode),
-      { maxBuffer: 64 * 1024 * 1024 },
+      { maxBuffer: 64 * 1024 * 1024, cwd },
       (error, stdout, stderr) => {
         if (error) {
           // ENOENT is the overwhelmingly common failure and deserves its own sentence rather than

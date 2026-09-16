@@ -87,6 +87,13 @@ line diff. They are swept a day later, at the next activation.
 | `codediff.binaryPath` | `codediff` | Path to, or name of, the binary. Looked up on `PATH` when it is a bare name. |
 | `codediff.renderMode` | `default` | `default` uses whatever codediff has persisted in its own config; `minimal` and `full` pass `--minimal`/`--full` and override it. |
 
+Under `default`, codediff reads the nearest `.codediff.toml` at or above **the directory of the
+file you are diffing** — so a project can pin its own render options, and the same two files paint
+the same way however VS Code was launched. (The extension used to let codediff inherit the
+extension host's working directory, which is wherever VS Code was started from; the painting could
+then differ between two launches of the same window.) Set `minimal` or `full` to ignore that
+config entirely.
+
 ## Colours
 
 Every highlight is a `ThemeColor` reference, not a literal, so it sits correctly in light, dark and

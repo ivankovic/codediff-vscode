@@ -98,6 +98,23 @@ async function openSide(side: Side): Promise<vscode.TextEditor> {
 }
 
 /**
+ * The directory codediff should resolve its own configuration from.
+ *
+ * codediff looks for the nearest `.codediff.toml` at or above its working directory, so this is
+ * what decides the render options behind `codediff.renderMode: default` - and the extension host's
+ * inherited working directory is no answer at all, being wherever VS Code was started from. The
+ * file under the cursor is, because its project's config is the one the user means.
+ *
+ * The *after* side is preferred: `before` is frequently a blob materialised out of git into the
+ * extension's own storage, which is in nobody's project. `undefined` - meaning "inherit", the old
+ * behaviour - is returned only when neither side is a real file on disk.
+ */
+function configDirectory(before: Side, after: Side): string | undefined {
+  const onDisk = [after, before].find((side) => side.display.scheme === 'file');
+  return onDisk ? dirname(onDisk.display.fsPath) : undefined;
+}
+
+/**
  * Runs codediff over the two sides and paints its verdict on both.
  *
  * Deliberately not VS Code's own `vscode.diff` command: that opens a *merged* diff editor whose
@@ -115,7 +132,7 @@ async function diffSides(
 
   const diff = await vscode.window.withProgress(
     { location: vscode.ProgressLocation.Window, title: 'CodeDiff: diffing…' },
-    () => runDiff(command, before.diffPath, after.diffPath, mode)
+    () => runDiff(command, before.diffPath, after.diffPath, mode, configDirectory(before, after))
   );
 
   if (diff.binary) {
