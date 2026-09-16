@@ -1,0 +1,80 @@
+name: Bug report
+description: Something in the extension misbehaves.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        If the *painting* is wrong but codediff's own verdict is right, it belongs here. If the
+        verdict is wrong, `codediff --mode json BEFORE AFTER` shows it without VS Code involved and
+        the report belongs in the codediff repository instead.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you ran, what you expected, and what you saw instead.
+      placeholder: |
+        Ran `CodeDiff: Diff With HEAD` on a .ts file.
+        Expected the moved function highlighted in the move colour.
+        Nothing was painted, and no error appeared.
+    validations:
+      required: true
+
+  - type: input
+    id: vscode
+    attributes:
+      label: VS Code version
+      description: Help → About, or `code --version`. Include the flavour if it is not VS Code itself - VSCodium, Cursor, a Remote/WSL window.
+    validations:
+      required: true
+
+  - type: input
+    id: platform
+    attributes:
+      label: OS and architecture
+      placeholder: Ubuntu 24.04 x64 / macOS 15 arm64 / Windows 11 x64
+    validations:
+      required: true
+
+  - type: dropdown
+    id: binary
+    attributes:
+      label: Which codediff binary is being used
+      description: >-
+        Resolution order is `codediff.binaryPath` (if changed from the default) → the binary bundled
+        in this VSIX → `codediff` on PATH. This is the field that explains most "nothing happens"
+        reports, particularly on a VS Code launched from Finder or the Dock, which does not inherit
+        a login shell's PATH.
+      options:
+        - Bundled with the extension
+        - Found on PATH
+        - An explicit codediff.binaryPath
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: cli
+    attributes:
+      label: Output of `codediff --version`
+      description: From a terminal. Leave blank if the binary is the bundled one.
+
+  - type: dropdown
+    id: rendermode
+    attributes:
+      label: codediff.renderMode
+      options:
+        - default
+        - minimal
+        - full
+    validations:
+      required: true
+
+  - type: textarea
+    id: sample
+    attributes:
+      label: The two files, if you can share them
+      description: >-
+        The smallest pair that still shows it. If they are not shareable, the language and the shape
+        of the edit - a reorder, a rename, an import list - is often enough.

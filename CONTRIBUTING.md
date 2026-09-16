@@ -103,21 +103,47 @@ Two things here are easy to get wrong and are checked rather than assumed:
   and that table list the same targets, because a target in one but not the other either fails the
   build or silently stops publishing a platform.
 
-The pinned version is `v0.0.13`, which does not exist yet: v0.0.12 predates both the
-`SHA256SUMS.txt` job and the `aarch64-unknown-linux-gnu` target in codediff's release workflow.
-Until that release is cut, `fetch-binary` fails with a 404 — deliberately, rather than quietly
+The pinned version is `v0.0.13`, and it now carries everything `fetch-binary` needs: a
+`SHA256SUMS.txt` and all five archives, `aarch64-unknown-linux-gnu` among them. v0.0.12 predates
+both, so pinning back to it would 404 — which is the designed failure, rather than quietly
 producing a VSIX with no binary.
 
 CI builds only the binary-free fallback VSIX, so a pull request never depends on a published tag of
 another repository. The five platform VSIXs are built in `release.yml`, on a tag.
 
+**The jobs that run `vsce` are pinned to Node 22, not the 20 the rest of CI uses**, because
+`@vscode/vsce` declares `engines: node >= 22`. npm only warns about an engine mismatch, so those
+jobs ran on 20 and worked by luck: vsce 4 calls `util.styleText`, which recent 20.x happens to
+carry and 18 does not. The test matrix stays [18, 20] — that is the extension host's Node, which is
+a different question from the packaging tool's.
+
 ## Publishing
 
 Not automated yet, deliberately — it needs credentials this repository does not hold.
 
-* `vsce publish` → Visual Studio Marketplace (needs an Azure DevOps publisher and a PAT).
-* `ovsx publish` → Open VSX, which is what VSCodium, Cursor and Windsurf install from. Skipping it
-  cuts out a real share of users for one extra step.
+One-time, to get a publisher at all:
+
+1. An Azure DevOps organization, then a personal access token with **Organization: All accessible
+   organizations** and **Scopes: Custom defined → Marketplace → Manage**. Both of those are easy to
+   get wrong and the failure is a permissions error much later.
+2. A publisher at <https://marketplace.visualstudio.com/manage> whose ID is `ivankovic`, matching
+   `publisher` in `package.json`. The ID cannot be changed afterwards.
+3. `vsce login ivankovic`, pasting the token.
+
+Then, per release — tag, let `release.yml` build the six VSIXs, and publish the packages it built
+rather than repackaging:
+
+```sh
+vsce publish --packagePath codediff-linux-x64.vsix    # once per target,
+vsce publish --packagePath codediff-fallback.vsix     # the fallback included
+```
+
+The target-less fallback is what the Marketplace serves to any platform with no package of its own,
+which is why `alpine-x64` is absent from the release matrix rather than built and left broken.
+
+* `ovsx publish` → Open VSX, which is what VSCodium, Cursor and Windsurf install from. It needs an
+  Eclipse Foundation account and `ovsx create-namespace ivankovic` first. Skipping it cuts out a
+  real share of users for one extra step.
 
 Both should become a release workflow once the publisher accounts exist.
 

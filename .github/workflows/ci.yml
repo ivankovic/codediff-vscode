@@ -64,7 +64,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # 22, not the 20 the other jobs use: @vscode/vsce declares `engines: node >= 22`. npm only
+          # warns on an engine mismatch, so this ran on 20 and happened to work - vsce 4 calls
+          # `util.styleText`, which recent 20.x carries. Depending on that is how a release job
+          # breaks on the first vsce release that uses something 22 genuinely added.
+          node-version: 22
           cache: npm
       - run: npm ci
       # Catches a broken manifest, a missing file, or a .vscodeignore that excludes something the

@@ -1,0 +1,40 @@
+# Changelog
+
+Notable changes to the CodeDiff extension. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+Changes to the `codediff` CLI itself live in
+[its own repository](https://github.com/ivankovic/codediff); this file covers the extension.
+
+## [Unreleased]
+
+Everything below is the state of the extension before its first Marketplace release.
+
+### Added
+
+- Syntax-aware highlighting of two files, painted onto real editors as decorations: insert, delete,
+  update and move, with a "moved to line N" hover and the nearest enclosing declaration.
+- `CodeDiff: Diff Two Files…`, `Diff With HEAD`, `Diff With Revision…`, `Diff With Last Saved` and
+  `Clear Highlights`, the git-aware three also on the Source Control and editor-tab context menus.
+- Platform-specific builds that bundle the `codediff` binary for Linux, macOS and Windows x64,
+  falling back to a `PATH` lookup everywhere else. This removes one failure in particular: a VS Code
+  launched from Finder or the Dock does not inherit a login shell's `PATH`, so a binary installed to
+  `~/.cargo/bin` is invisible to it.
+- A prompt with an install link when no binary can be found at all.
+- Its own registered colour IDs - `codediff.insertBackground`, `codediff.deleteBackground`,
+  `codediff.updateBackground`, `codediff.moveBackground` - so any one highlight can be retuned,
+  per theme if wanted, without repainting anything else in the editor.
+
+### Fixed
+
+- Columns on lines containing non-ASCII characters. codediff reports byte offsets and VS Code's
+  `Position.character` is UTF-16 code units; they agree exactly while a line is all-ASCII and
+  diverge the moment it is not.
+- Two files sharing a basename at one revision no longer overwrite each other's materialised blob,
+  which used to reload an open editor with the other file's content.
+- `git show` output is read as a `Buffer`, so a file that is not UTF-8 is not corrupted on its way
+  to disk.
+- codediff's configuration is resolved from the directory of the file being diffed rather than from
+  the extension host's inherited working directory, so `renderMode: default` no longer paints
+  differently depending on where VS Code was started from.
