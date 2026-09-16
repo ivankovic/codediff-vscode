@@ -22,6 +22,10 @@ Everything below is the state of the extension before its first Marketplace rele
   launched from Finder or the Dock does not inherit a login shell's `PATH`, so a binary installed to
   `~/.cargo/bin` is invisible to it.
 - A prompt with an install link when no binary can be found at all.
+- `codediff.renderMode: custom` and six `codediff.render.*` options — the same six the terminal UI
+  offers under its `M` panel, so both front ends can be made to paint alike. They take effect
+  through codediff's `CODEDIFF_CONFIG`, the one config layer that outranks a project's own
+  `.codediff.toml`.
 - Its own registered colour IDs - `codediff.insertBackground`, `codediff.deleteBackground`,
   `codediff.updateBackground`, `codediff.moveBackground` - so any one highlight can be retuned,
   per theme if wanted, without repainting anything else in the editor.

@@ -21,7 +21,14 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { buildArguments, CodeDiffError, isBinaryAvailable, parseDiff } from '../codediff';
+import {
+  buildArguments,
+  CodeDiffError,
+  DEFAULT_RENDER_OPTIONS,
+  isBinaryAvailable,
+  parseDiff,
+  renderOptionsToml,
+} from '../codediff';
 
 test('default mode passes no render flag, so codediff uses its own persisted setting', () => {
   assert.deepEqual(buildArguments('a.rs', 'b.rs', 'default'), ['--mode', 'json', 'a.rs', 'b.rs']);
@@ -30,6 +37,35 @@ test('default mode passes no render flag, so codediff uses its own persisted set
 test('minimal and full are passed through as flags', () => {
   assert.deepEqual(buildArguments('a.rs', 'b.rs', 'minimal'), ['--mode', 'json', '--minimal', 'a.rs', 'b.rs']);
   assert.deepEqual(buildArguments('a.rs', 'b.rs', 'full'), ['--mode', 'json', '--full', 'a.rs', 'b.rs']);
+});
+
+test('custom mode passes no preset flag either, so the config file is the only opinion', () => {
+  // Load-bearing rather than incidental. `custom` works by handing codediff a config file through
+  // CODEDIFF_CONFIG; a `--minimal` or `--full` alongside it would be a second opinion on the same
+  // question, and which one wins is not established anywhere. Never combining them means never
+  // having to know.
+  assert.deepEqual(buildArguments('a.rs', 'b.rs', 'custom'), ['--mode', 'json', 'a.rs', 'b.rs']);
+});
+
+test('the generated config carries all six options and nothing else', () => {
+  const toml = renderOptionsToml(DEFAULT_RENDER_OPTIONS);
+  assert.match(toml, /^\[render_options\]$/m);
+  for (const [key, value] of Object.entries(DEFAULT_RENDER_OPTIONS)) {
+    assert.match(toml, new RegExp(`^${key} = ${value}$`, 'm'), `${key} missing from the config`);
+  }
+  // Nothing about themes, layout or recent pairs: this file is written into the user's session and
+  // has no business holding an opinion on settings the extension does not offer.
+  assert.doesNotMatch(toml, /theme|layout|recent_pairs|palette/);
+});
+
+test('the defaults are codediff\'s FULL preset, which is not all-true', () => {
+  // whole_pair_updates is off in both of codediff's presets - it changes which ranges the diff has
+  // rather than how much of a decided range is painted. Defaulting all six to true would ship a
+  // combination codediff itself never uses.
+  assert.equal(DEFAULT_RENDER_OPTIONS.whole_pair_updates, false);
+  const others = { ...DEFAULT_RENDER_OPTIONS } as Record<string, boolean>;
+  delete others['whole_pair_updates'];
+  assert.ok(Object.values(others).every((value) => value === true), 'the other five are FULL');
 });
 
 test('paths go last, after every flag, and are never concatenated into one string', () => {

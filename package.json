@@ -158,10 +158,47 @@
           "enum": [
             "default",
             "minimal",
-            "full"
+            "full",
+            "custom"
+          ],
+          "enumDescriptions": [
+            "Use whatever is persisted in codediff's own config - the nearest .codediff.toml at or above the file being diffed, else your user-level one.",
+            "The tightest reading: drop standalone brackets and separators, trim leading whitespace.",
+            "The fullest reading: keep standalone brackets and separators, keep leading whitespace.",
+            "Use the codediff.render.* options below, ignoring codediff's own config entirely."
           ],
           "default": "default",
-          "markdownDescription": "Which ranges codediff paints. `default` uses whatever is persisted in codediff's own config; `minimal` and `full` pass `--minimal`/`--full` and override it."
+          "markdownDescription": "Which ranges codediff paints. `default` defers to codediff's own config; `minimal` and `full` pass `--minimal`/`--full` and override it; `custom` uses the `codediff.render.*` options below, which are the same six the terminal UI offers under its `M` panel."
+        },
+        "codediff.render.leadingWhitespace": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Keep the whitespace a range starts with, on every one of its lines, instead of trimming back to the first real character.\n\nOnly applies when `#codediff.renderMode#` is `custom`."
+        },
+        "codediff.render.structuralPunctuation": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Paint ranges that are nothing but brackets, separators and whitespace - `(`, `)`, `[`, `]`, `{`, `}`, `,`, `;`, `:`. Operators are never dropped by this: an edit from `<` to `<=` is the whole edit.\n\nOnly applies when `#codediff.renderMode#` is `custom`."
+        },
+        "codediff.render.wholePairUpdates": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Highlight an updated pair whole - both `argument` and `i_am_an_argument` - instead of narrowing to the part that actually differs.\n\nOff in both `minimal` and `full`: this decides which ranges the diff *has* rather than how much of a decided range gets painted, so it sits on its own axis.\n\nOnly applies when `#codediff.renderMode#` is `custom`."
+        },
+        "codediff.render.paintReindentOnlyMoves": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Report a relocation as a move even when it is a pure reindent - nesting added or removed around otherwise untouched content, as when a Rust `if let` chain collapses.\n\nOnly applies when `#codediff.renderMode#` is `custom`."
+        },
+        "codediff.render.paintDisplacedMoves": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Report a node as moved when it was pushed along by an edit beside it rather than moved in its own right.\n\nOnly applies when `#codediff.renderMode#` is `custom`."
+        },
+        "codediff.render.paintResizedMoves": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Report a move whose two sides are different sizes.\n\nOnly applies when `#codediff.renderMode#` is `custom`."
         }
       }
     }

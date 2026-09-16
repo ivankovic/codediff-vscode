@@ -23,13 +23,22 @@
  * `git.ts`; this file is deliberately thin, because nothing in it can run under `node --test`.
  */
 
-import { readdirSync, readFileSync, rmSync, statSync, utimesSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { mkdirSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
 import * as vscode from 'vscode';
 
 import { ensureExecutable, resolveBinary, type Resolution } from './binary';
-import { CodeDiffError, isBinaryAvailable, runDiff, type RenderMode } from './codediff';
+import {
+  CodeDiffError,
+  DEFAULT_RENDER_OPTIONS,
+  isBinaryAvailable,
+  renderOptionsToml,
+  runDiff,
+  type RenderMode,
+  type RenderOptions,
+} from './codediff';
 import { applyHunks, clear, createDecorationTypes, type DecorationTypes } from './decorations';
 import {
   GitError,
@@ -47,6 +56,44 @@ const SCRATCH_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 function renderMode(): RenderMode {
   return vscode.workspace.getConfiguration('codediff').get<RenderMode>('renderMode', 'default');
+}
+
+/**
+ * The six painting options, read from the settings.
+ *
+ * Keyed by codediff's own field names on one side and the settings' camelCase on the other, in one
+ * table, so adding an option is one line rather than two that can disagree.
+ */
+const RENDER_SETTINGS: ReadonlyArray<readonly [keyof RenderOptions, string]> = [
+  ['leading_whitespace', 'leadingWhitespace'],
+  ['structural_punctuation', 'structuralPunctuation'],
+  ['whole_pair_updates', 'wholePairUpdates'],
+  ['paint_reindent_only_moves', 'paintReindentOnlyMoves'],
+  ['paint_displaced_moves', 'paintDisplacedMoves'],
+  ['paint_resized_moves', 'paintResizedMoves'],
+];
+
+/**
+ * Writes the config file that `codediff.renderMode: custom` runs against, and returns its path.
+ *
+ * Named after a hash of its own contents rather than written to one fixed path: two windows
+ * diffing at the same moment with different settings would otherwise race on that file, and the
+ * loser would paint with the winner's options. Identical settings reuse one file, so this is a
+ * handful of small files per session at worst, swept with the rest of the scratch directory.
+ */
+function writeRenderConfig(session: string): string {
+  const configured = vscode.workspace.getConfiguration('codediff.render');
+  const options = { ...DEFAULT_RENDER_OPTIONS };
+  for (const [field, setting] of RENDER_SETTINGS) {
+    options[field] = configured.get<boolean>(setting, DEFAULT_RENDER_OPTIONS[field]);
+  }
+
+  const contents = renderOptionsToml(options);
+  const directory = join(session, 'config');
+  mkdirSync(directory, { recursive: true });
+  const path = join(directory, `${createHash('sha256').update(contents).digest('hex').slice(0, 16)}.toml`);
+  writeFileSync(path, contents, 'utf8');
+  return path;
 }
 
 /**
@@ -125,14 +172,20 @@ async function diffSides(
   before: Side,
   after: Side,
   types: DecorationTypes,
-  extensionRoot: string
+  extensionRoot: string,
+  session: string
 ): Promise<void> {
   const { command } = binary(extensionRoot);
   const mode = renderMode();
 
   const diff = await vscode.window.withProgress(
     { location: vscode.ProgressLocation.Window, title: 'CodeDiff: diffing…' },
-    () => runDiff(command, before.diffPath, after.diffPath, mode, configDirectory(before, after))
+    () =>
+      runDiff(command, before.diffPath, after.diffPath, {
+        mode,
+        cwd: configDirectory(before, after),
+        configPath: mode === 'custom' ? writeRenderConfig(session) : undefined,
+      })
   );
 
   if (diff.binary) {
@@ -272,7 +325,8 @@ export function activate(context: vscode.ExtensionContext): void {
       fileSide(materialized, vscode.ViewColumn.One),
       { diffPath: uri.fsPath, display: uri, column: vscode.ViewColumn.Two },
       types,
-      extensionRoot
+      extensionRoot,
+      session
     );
   }
 
@@ -306,7 +360,8 @@ export function activate(context: vscode.ExtensionContext): void {
       fileSide(savedPath, vscode.ViewColumn.One),
       { diffPath: bufferPath, display: document.uri, column: vscode.ViewColumn.Two },
       types,
-      extensionRoot
+      extensionRoot,
+      session
     );
   }
 
@@ -370,7 +425,8 @@ export function activate(context: vscode.ExtensionContext): void {
         { diffPath: pair[0].fsPath, display: pair[0], column: vscode.ViewColumn.One },
         { diffPath: pair[1].fsPath, display: pair[1], column: vscode.ViewColumn.Two },
         types,
-        extensionRoot
+        extensionRoot,
+        session
       );
     }),
 

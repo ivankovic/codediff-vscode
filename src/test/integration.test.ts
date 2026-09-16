@@ -35,7 +35,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 
 import { byteColumnToUtf16 } from '../columns';
-import { runDiff } from '../codediff';
+import { renderOptionsToml, runDiff } from '../codediff';
 
 function codediffAvailable(): boolean {
   try {
@@ -160,12 +160,60 @@ test(
       );
     }
 
-    const without = await runDiff('codediff', before, after, 'default', off);
-    const painted = await runDiff('codediff', before, after, 'default', on);
+    const without = await runDiff('codediff', before, after, { cwd: off });
+    const painted = await runDiff('codediff', before, after, { cwd: on });
 
     assert.ok(
       painted.after.hunks.length > without.after.hunks.length,
       `expected the all-on configuration to paint more: ${painted.after.hunks.length} vs ${without.after.hunks.length}`
+    );
+  }
+);
+
+/**
+ * `codediff.renderMode: custom` works by writing a config file and pointing `CODEDIFF_CONFIG` at
+ * it, which codediff reads before any other layer and without walking up. This is the assertion
+ * that the variable actually reaches the process and outranks a `.codediff.toml` sitting in the
+ * working directory - the whole mechanism is one environment variable, and nothing else here would
+ * notice if it stopped being honoured.
+ *
+ * The directory deliberately contains the *opposite* configuration, so a pass cannot come from the
+ * cwd being consulted instead.
+ */
+test(
+  'CODEDIFF_CONFIG outranks a .codediff.toml in the working directory',
+  { skip: codediffAvailable() ? false : 'codediff not on PATH' },
+  async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'codediff-vscode-env-'));
+    const before = join(dir, 'before.py');
+    const after = join(dir, 'after.py');
+    writeFileSync(before, BEFORE_SOURCE, 'utf8');
+    writeFileSync(after, AFTER_SOURCE, 'utf8');
+
+    const all = (enabled: boolean) =>
+      renderOptionsToml({
+        leading_whitespace: enabled,
+        structural_punctuation: enabled,
+        whole_pair_updates: enabled,
+        paint_reindent_only_moves: enabled,
+        paint_displaced_moves: enabled,
+        paint_resized_moves: enabled,
+      });
+
+    // The working directory says everything on; the environment says everything off.
+    const cwd = join(dir, 'cwd');
+    mkdirSync(cwd);
+    writeFileSync(join(cwd, '.codediff.toml'), all(true), 'utf8');
+    const override = join(dir, 'override.toml');
+    writeFileSync(override, all(false), 'utf8');
+
+    const inherited = await runDiff('codediff', before, after, { cwd });
+    const overridden = await runDiff('codediff', before, after, { cwd, configPath: override });
+
+    assert.ok(
+      inherited.after.hunks.length > overridden.after.hunks.length,
+      `expected CODEDIFF_CONFIG to win: ${overridden.after.hunks.length} hunks against the ` +
+        `directory's ${inherited.after.hunks.length}`
     );
   }
 );

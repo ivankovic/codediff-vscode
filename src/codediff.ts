@@ -62,8 +62,64 @@ export interface JsonDiff {
   binary?: boolean;
 }
 
-/** Which extra flag, if any, to pass for a configured render mode. */
-export type RenderMode = 'default' | 'minimal' | 'full';
+/**
+ * Which extra flag, if any, to pass for a configured render mode.
+ *
+ * `custom` passes no flag at all and is not a preset: it means the six options below are written
+ * to a config file of this extension's own, which `CODEDIFF_CONFIG` then makes authoritative.
+ */
+export type RenderMode = 'default' | 'minimal' | 'full' | 'custom';
+
+/**
+ * The six painting options codediff's own settings panel offers, spelled the way its config file
+ * spells them.
+ *
+ * These are the whole of the TUI's `M` panel. Its other settings - theme, custom palette, panel
+ * layout, syntax theme, node highlight - describe a terminal UI this extension does not have: VS
+ * Code owns the panes, and the colours are contributed colour IDs here rather than a palette of
+ * codediff's.
+ */
+export interface RenderOptions {
+  leading_whitespace: boolean;
+  structural_punctuation: boolean;
+  whole_pair_updates: boolean;
+  paint_reindent_only_moves: boolean;
+  paint_displaced_moves: boolean;
+  paint_resized_moves: boolean;
+}
+
+/**
+ * codediff's own defaults, which are its `FULL` preset.
+ *
+ * Note `whole_pair_updates` is `false` here while the other five are `true`: `FULL` is "the fullest
+ * reading of an already-decided range list", and whole-pair updates change which ranges the diff
+ * *has*, so it sits on a different axis and is off in both presets. Defaulting all six to `true`
+ * would ship a combination codediff itself never uses.
+ */
+export const DEFAULT_RENDER_OPTIONS: RenderOptions = Object.freeze({
+  leading_whitespace: true,
+  structural_punctuation: true,
+  whole_pair_updates: false,
+  paint_reindent_only_moves: true,
+  paint_displaced_moves: true,
+  paint_resized_moves: true,
+});
+
+/**
+ * The config file contents that pin codediff to `options`.
+ *
+ * Only `[render_options]` is written. Every other field of codediff's config has a serde default,
+ * so a file carrying just this section is complete as far as deserialization is concerned, and
+ * leaving the rest out means this file says nothing about the user's theme or recent pairs - which
+ * it has no business having an opinion on.
+ */
+export function renderOptionsToml(options: RenderOptions): string {
+  const lines = ['# Written by the CodeDiff VS Code extension. Edits here are overwritten.', '', '[render_options]'];
+  for (const [key, value] of Object.entries(options)) {
+    lines.push(`${key} = ${value}`);
+  }
+  return lines.join('\n') + '\n';
+}
 
 export class CodeDiffError extends Error {}
 
@@ -106,6 +162,11 @@ export function buildArguments(before: string, after: string, mode: RenderMode):
   const args = ['--mode', 'json'];
   // `default` deliberately passes neither flag, so codediff falls back to whatever the user
   // persisted in its own config - which is what makes the two front ends agree by default.
+  //
+  // `custom` passes neither either, and that is load-bearing rather than incidental: it works by
+  // handing codediff a config file through `CODEDIFF_CONFIG`, and a `--minimal`/`--full` alongside
+  // it would be a second opinion on the same question whose precedence nothing here establishes.
+  // Never combining them means never needing to know.
   if (mode === 'minimal' || mode === 'full') {
     args.push(`--${mode}`);
   }
@@ -127,18 +188,38 @@ export function buildArguments(before: string, after: string, mode: RenderMode):
  * Code happened to be started in, which makes the default painting differ between two launches of
  * the same window. Callers pass the directory of the file being diffed instead.
  */
+export interface RunOptions {
+  /** Which preset, if any, to force. Defaults to `default` - defer to codediff's own config. */
+  mode?: RenderMode | undefined;
+  /** The directory codediff resolves its configuration from. See above. */
+  cwd?: string | undefined;
+  /**
+   * A config file to make authoritative, through `CODEDIFF_CONFIG`.
+   *
+   * codediff reads that variable before any other config layer and without walking up, so this
+   * overrides both the project's `.codediff.toml` and the user's own. Only set for `mode: custom`,
+   * where overriding is the point; leaving it unset is what keeps a project's config in charge.
+   */
+  configPath?: string | undefined;
+}
+
 export function runDiff(
   binaryPath: string,
   before: string,
   after: string,
-  mode: RenderMode = 'default',
-  cwd?: string
+  { mode = 'default', cwd, configPath }: RunOptions = {}
 ): Promise<JsonDiff> {
   return new Promise((resolve, reject) => {
     execFile(
       binaryPath,
       buildArguments(before, after, mode),
-      { maxBuffer: 64 * 1024 * 1024, cwd },
+      {
+        maxBuffer: 64 * 1024 * 1024,
+        cwd,
+        // Spread rather than replace: codediff needs the inherited environment to find anything at
+        // all, PATH included.
+        env: configPath ? { ...process.env, CODEDIFF_CONFIG: configPath } : process.env,
+      },
       (error, stdout, stderr) => {
         if (error) {
           // ENOENT is the overwhelmingly common failure and deserves its own sentence rather than

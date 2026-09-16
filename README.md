@@ -85,14 +85,46 @@ line diff. They are swept a day later, at the next activation.
 | Setting | Default | Meaning |
 | --- | --- | --- |
 | `codediff.binaryPath` | `codediff` | Path to, or name of, the binary. Looked up on `PATH` when it is a bare name. |
-| `codediff.renderMode` | `default` | `default` uses whatever codediff has persisted in its own config; `minimal` and `full` pass `--minimal`/`--full` and override it. |
+| `codediff.renderMode` | `default` | Which ranges get painted: `default`, `minimal`, `full`, or `custom`. |
 
-Under `default`, codediff reads the nearest `.codediff.toml` at or above **the directory of the
-file you are diffing** — so a project can pin its own render options, and the same two files paint
-the same way however VS Code was launched. (The extension used to let codediff inherit the
-extension host's working directory, which is wherever VS Code was started from; the painting could
-then differ between two launches of the same window.) Set `minimal` or `full` to ignore that
-config entirely.
+`renderMode` is the one that decides how much you see:
+
+- **`default`** defers to codediff's own config — the nearest `.codediff.toml` at or above **the
+  directory of the file you are diffing**, else your user-level one. A project can pin its own
+  render options this way, and the same two files then paint the same way however VS Code was
+  launched.
+- **`minimal`** and **`full`** pass `--minimal`/`--full`, the two presets, overriding that config.
+- **`custom`** uses the six options below and ignores codediff's config entirely.
+
+### The six painting options
+
+These are the whole of what codediff's terminal UI offers under its `M` panel, and they apply
+**only when `codediff.renderMode` is `custom`** — VS Code has no way to grey out a setting that
+does not currently apply, so changing one while the mode is anything else does nothing and says
+nothing.
+
+| Setting | Default | What turning it on does |
+| --- | --- | --- |
+| `codediff.render.leadingWhitespace` | `true` | Keeps the whitespace a range starts with, on every line of it. |
+| `codediff.render.structuralPunctuation` | `true` | Paints ranges that are only brackets and separators. Operators are never dropped — `<` to `<=` is the whole edit. |
+| `codediff.render.wholePairUpdates` | `false` | Highlights an updated pair whole rather than just the part that differs. |
+| `codediff.render.paintReindentOnlyMoves` | `true` | Calls a pure reindent a move. |
+| `codediff.render.paintDisplacedMoves` | `true` | Calls a node pushed along by a neighbouring edit a move. |
+| `codediff.render.paintResizedMoves` | `true` | Reports moves whose two sides are different sizes. |
+
+The defaults are codediff's own, which are its `full` preset — note that is not all six on, because
+`wholePairUpdates` is off in both presets. It changes which ranges the diff *has* rather than how
+much of a decided range is painted, so it sits on a different axis. Switching to `custom` therefore
+changes nothing until you toggle something.
+
+The terminal UI's other settings have no counterpart here on purpose: its theme and custom palette
+are replaced by the [colour IDs](#colours) below, which follow your VS Code theme, and its panel
+layout and node highlight describe a terminal UI this extension does not have — VS Code owns the
+panes.
+
+Under the hood `custom` writes a small config file into the extension's storage and points
+codediff's `CODEDIFF_CONFIG` at it, which is the one layer that outranks every `.codediff.toml`.
+That is why `custom` ignores a project's config where `default` respects it.
 
 ## Colours
 
