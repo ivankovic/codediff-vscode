@@ -16,6 +16,9 @@ CONTRIBUTING.md
 # The download script runs at package time, before vsce reads this file; `bin/` is its output and
 # is the one thing here that MUST ship in a platform-specific VSIX.
 scripts/**
+# The icon's generator. `icon.png` itself is NOT ignored - the manifest points at it and the
+# Marketplace listing needs it - but the script that draws it is for people, like scripts/.
+assets/**
 **/*.map
 **/*.ts
 # Built into out/ by `npm test`; nothing can run them from inside a VSIX.

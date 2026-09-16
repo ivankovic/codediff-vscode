@@ -117,6 +117,12 @@ jobs ran on 20 and worked by luck: vsce 4 calls `util.styleText`, which recent 2
 carry and 18 does not. The test matrix stays [18, 20] — that is the extension host's Node, which is
 a different question from the packaging tool's.
 
+## The icon
+
+`icon.png` is generated: `python3 assets/icon.py` redraws it. Recolouring or resizing it is an edit
+to that script, not to a binary, and the reasoning behind the design — including which richer
+pictures were tried and discarded for being illegible at 32px — is in its docstring.
+
 ## Publishing
 
 Not automated yet, deliberately — it needs credentials this repository does not hold.

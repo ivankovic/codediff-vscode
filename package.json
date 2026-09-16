@@ -15,6 +15,11 @@
     "url": "https://github.com/ivankovic/codediff-vscode/issues"
   },
   "homepage": "https://github.com/ivankovic/codediff",
+  "icon": "icon.png",
+  "galleryBanner": {
+    "color": "#1f2430",
+    "theme": "dark"
+  },
   "categories": [
     "SCM Providers",
     "Other"
