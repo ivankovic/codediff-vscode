@@ -96,19 +96,38 @@ config entirely.
 
 ## Colours
 
-Every highlight is a `ThemeColor` reference, not a literal, so it sits correctly in light, dark and
-high-contrast themes without this extension shipping a palette of its own:
+Each highlight has its own registered colour ID, so you can retune one without touching anything
+else in the editor:
 
-| Operation | Theme colour |
-| --- | --- |
-| insert | `diffEditor.insertedTextBackground` |
-| delete | `diffEditor.removedTextBackground` |
-| update | `merge.currentContentBackground` |
-| move | `editor.symbolHighlightBackground` |
+| Operation | Colour ID | Default on dark | Composited on `#1e1e1e` |
+| --- | --- | --- | --- |
+| insert | `codediff.insertBackground` | `#32d74bb3` | `#2ca03e` |
+| delete | `codediff.deleteBackground` | `#ff3b30b3` | `#bc322b` |
+| update | `codediff.updateBackground` | `#ff8c1ab3` | `#bc6b1b` |
+| move | `codediff.moveBackground` | `#5c5d64cc` | `#505056` |
 
-VS Code has no diff colour of its own for "updated" or "moved", so those two are the closest
-theme-defined stand-ins. Override them in your theme or in `workbench.colorCustomizations` as you
-would any other.
+All four are literals, at 70% alpha on dark. None of them references a theme key, and insert and
+delete are the interesting case: `diffEditor.insertedTextBackground` and
+`diffEditor.removedTextBackground` are the obvious references, and this extension used them, but
+both sit at 20% alpha — right for the diff editor, which washes whole lines with colour, and far
+too faint here, where what gets painted is often a single identifier. Update is an orange rather
+than the olive it started as so that it cannot read as a dimmer insert.
+
+Alpha rather than opaque colour, so each still composites over the theme's own editor background.
+`contributes.colors` takes one value per theme *kind* — light, dark, high-contrast — not per theme,
+so a single dark value has to serve every dark theme. If one of them sits badly in yours, override
+it, scoped to that theme if you like:
+
+```jsonc
+"workbench.colorCustomizations": {
+  "codediff.moveBackground": "#5c5d64",
+  "[Solarized Light]": { "codediff.moveBackground": "#d8d3c0" }
+}
+```
+
+That is the reason these are contributed IDs rather than direct references to shared keys:
+retuning `editor.symbolHighlightBackground` would repaint find-match highlights across the whole
+editor, while `codediff.moveBackground` touches nothing but this extension.
 
 ## How it works
 

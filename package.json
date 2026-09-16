@@ -98,6 +98,48 @@
         }
       ]
     },
+    "colors": [
+      {
+        "id": "codediff.insertBackground",
+        "description": "Background of code codediff reports as inserted.",
+        "defaults": {
+          "light": "#32d74b99",
+          "dark": "#32d74bb3",
+          "highContrast": "#32d74bcc",
+          "highContrastLight": "#32d74bcc"
+        }
+      },
+      {
+        "id": "codediff.deleteBackground",
+        "description": "Background of code codediff reports as deleted.",
+        "defaults": {
+          "light": "#ff3b3099",
+          "dark": "#ff3b30b3",
+          "highContrast": "#ff3b30cc",
+          "highContrastLight": "#ff3b30cc"
+        }
+      },
+      {
+        "id": "codediff.updateBackground",
+        "description": "Background of code codediff reports as updated in place.",
+        "defaults": {
+          "light": "#ff8c1a99",
+          "dark": "#ff8c1ab3",
+          "highContrast": "#ff8c1acc",
+          "highContrastLight": "#ff8c1acc"
+        }
+      },
+      {
+        "id": "codediff.moveBackground",
+        "description": "Background of code codediff reports as moved, and of its counterpart on the other side.",
+        "defaults": {
+          "light": "#c8c9d1cc",
+          "dark": "#5c5d64cc",
+          "highContrast": "#5c5d64",
+          "highContrastLight": "#c8c9d1"
+        }
+      }
+    ],
     "configuration": {
       "title": "CodeDiff",
       "properties": {

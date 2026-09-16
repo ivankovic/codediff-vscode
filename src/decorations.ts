@@ -19,10 +19,31 @@
 /**
  * Turning codediff's hunks into editor decorations.
  *
- * The colours are theme references, not literals: `diffEditor.insertedTextBackground` and friends
- * are what VS Code's own diff editor paints with, so these highlights sit correctly in any theme -
- * light, dark or high-contrast - without this extension shipping a palette it would have to keep
- * in step with every theme in the Marketplace.
+ * The colours are this extension's own registered colour IDs, declared in `contributes.colors`.
+ * All four defaults are literals rather than references to the theme's own keys, for one reason
+ * that applies to each of them differently.
+ *
+ * Update and move have no key to reference: VS Code has no diff colour for either, and the closest
+ * stand-ins are too faint to read - `merge.currentContentBackground` composites to about 20% alpha
+ * and `editor.symbolHighlightBackground` (an alias of `editor.findMatchHighlightBackground`,
+ * `#EA5C0055`) to 33%.
+ *
+ * Insert and delete do have obvious ones - `diffEditor.insertedTextBackground` and
+ * `diffEditor.removedTextBackground` - and referenced them until it became clear they are tuned
+ * for a different job. Both sit at 20% alpha (`#9ccc2c33`, `#ff000033`), which is right for the
+ * diff editor, where whole lines are washed with colour and a faint tint is enough to read a block
+ * by. This extension paints token-level ranges - an identifier, an operator - where that same tint
+ * is barely visible. All four therefore sit at 70% alpha on dark, which is what makes a single
+ * changed word read as changed.
+ *
+ * Alpha, not opaque colour, so they composite over whatever editor background the theme has:
+ * `contributes.colors` takes one value per theme *kind*, so a single dark value has to survive
+ * every dark theme, and an opaque one behind a light theme's text would not.
+ *
+ * Contributing IDs rather than referencing shared keys directly is also what makes these
+ * overridable in isolation. Retuning `editor.symbolHighlightBackground` in
+ * `workbench.colorCustomizations` would repaint find-match highlights across the whole editor;
+ * retuning `codediff.moveBackground` - per theme, if wanted - touches nothing else.
  */
 
 import * as vscode from 'vscode';
@@ -43,13 +64,10 @@ export function createDecorationTypes(): DecorationTypes {
   });
 
   return Object.freeze({
-    insert: vscode.window.createTextEditorDecorationType(background('diffEditor.insertedTextBackground')),
-    delete: vscode.window.createTextEditorDecorationType(background('diffEditor.removedTextBackground')),
-    // VS Code has no "updated" or "moved" diff colour of its own. `merge.currentContentBackground`
-    // and `editor.symbolHighlightBackground` are the closest theme-defined stand-ins: both are
-    // defined by every shipped theme, so neither falls back to transparent.
-    update: vscode.window.createTextEditorDecorationType(background('merge.currentContentBackground')),
-    move: vscode.window.createTextEditorDecorationType(background('editor.symbolHighlightBackground')),
+    insert: vscode.window.createTextEditorDecorationType(background('codediff.insertBackground')),
+    delete: vscode.window.createTextEditorDecorationType(background('codediff.deleteBackground')),
+    update: vscode.window.createTextEditorDecorationType(background('codediff.updateBackground')),
+    move: vscode.window.createTextEditorDecorationType(background('codediff.moveBackground')),
   });
 }
 
