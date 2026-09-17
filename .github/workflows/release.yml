@@ -155,18 +155,19 @@ jobs:
           pattern: vsix-*
           merge-multiple: true
 
-      # One invocation for all six. vsce takes repeated --packagePath precisely so that a
-      # platform-specific extension's builds land as one version rather than six racing ones.
+      # One invocation for all six. `--packagePath` is variadic - one flag, many paths - which is
+      # how a platform-specific extension's builds land as one version rather than six racing
+      # ones. Repeating the flag is not the same thing and is not what vsce documents.
+      #
+      # `--skip-duplicate` makes a re-run survivable. The only ways this job runs are a fresh tag
+      # and a manual re-run of a failed release, and in both an already-published file is exactly
+      # the thing to step over - a Marketplace version can never be republished.
       - name: vsce publish
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
         run: |
-          args=""
-          for vsix in *.vsix; do
-            args="$args --packagePath $vsix"
-          done
-          echo "publishing:$args"
-          npx --yes @vscode/vsce publish $args
+          ls -la *.vsix
+          npx --yes @vscode/vsce publish --skip-duplicate --packagePath *.vsix
 
   # Open VSX is what VSCodium, Cursor, Windsurf and the other non-Microsoft builds install from.
   # Skipping it would cut out a real share of users for one more job.
@@ -204,13 +205,9 @@ jobs:
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
         run: npx --yes ovsx create-namespace ivankovic -p "$OVSX_PAT" || echo "namespace already exists"
 
-      # A loop rather than one command: `ovsx publish` takes a single package, and a per-file loop
-      # also names which target failed.
+      # Same shape as the Marketplace job: one variadic `--packagePath`, and `--skip-duplicate`
+      # so that a re-run after a half-finished publish steps over what already landed.
       - name: ovsx publish
         env:
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
-        run: |
-          for vsix in *.vsix; do
-            echo "=== $vsix ==="
-            npx --yes ovsx publish "$vsix" -p "$OVSX_PAT"
-          done
+        run: npx --yes ovsx publish --skip-duplicate --packagePath *.vsix -p "$OVSX_PAT"

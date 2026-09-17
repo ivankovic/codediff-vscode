@@ -74,14 +74,18 @@ package: clean
 # Every VSIX a release ships, built the way release.yml builds them. Not part of `check` - it
 # downloads five ~6MB archives from the pinned codediff release - but it is the way to reproduce
 # a release job locally when one fails.
+# The `trap` is the point of the shell being written this way. A failure partway through - a 404,
+# a checksum mismatch - would otherwise leave `bin/` populated with whichever platform's binary got
+# that far, and the next bare `vsce package` would put it in the fallback VSIX. `make package`
+# cleans first and so self-heals; nothing protects someone who runs vsce directly.
 package-all: package
 	$(require-node-22)
-	@for target in $(TARGETS); do \
+	@trap 'rm -rf bin' EXIT; \
+	for target in $(TARGETS); do \
 		echo "=== $$target ==="; \
 		npm run fetch-binary -- $$target || exit 1; \
 		$(VSCE) package --target $$target --out codediff-$$target.vsix || exit 1; \
 	done
-	@rm -rf bin
 
 clean:
 	rm -rf bin out *.vsix

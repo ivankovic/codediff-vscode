@@ -177,9 +177,18 @@ If a publish job fails and you would rather finish it locally, publish the artef
 GitHub Release rather than building new ones:
 
 ```sh
-vsce publish --packagePath codediff-linux-x64.vsix --packagePath codediff-fallback.vsix ...
-ovsx publish codediff-linux-x64.vsix -p "$OVSX_PAT"
+vsce publish --skip-duplicate --packagePath *.vsix
+ovsx publish --skip-duplicate --packagePath *.vsix -p "$OVSX_PAT"
 ```
+
+`--packagePath` is variadic — one flag, many paths — which is how the six builds land as one
+version. `--skip-duplicate` steps over whatever the failed job already published; it is safe here
+precisely because nothing else can make this command run twice on one version.
+
+If a publish got far enough to be *partly* wrong rather than partly done — a bad README, the wrong
+binary in a target — the answer is a new version, not a retry. A Marketplace version can be
+superseded and never replaced, and `deploy-checks` cannot see that: it knows about local tags, not
+about what is live.
 
 `make package-all` reproduces all six locally when a build job is the thing that broke. It needs
 Node 22 — as does anything running `vsce` — and it deletes `bin/` afterwards, because a stale
