@@ -38,9 +38,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 18 is what VS Code 1.85 ships as its extension host; 20 is what newer builds use. Both
-        # have to work, because the extension runs on whichever the user's VS Code has.
-        node: [18, 20]
+        # 18 is what VS Code 1.85 ships as its extension host, 20 is what newer builds use, and
+        # 22 is where they are going. All three have to work, because the extension runs on
+        # whichever the user's VS Code has.
+        #
+        # 22 is here for a second reason: `node --test <directory>` stopped meaning "every test
+        # file under here" and started meaning "run this path as a file", so the test script has
+        # to name the files. On [18, 20] alone that regression was invisible.
+        node: [18, 20, 22]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

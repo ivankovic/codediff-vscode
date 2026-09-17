@@ -114,8 +114,13 @@ another repository. The five platform VSIXs are built in `release.yml`, on a tag
 **The jobs that run `vsce` are pinned to Node 22, not the 20 the rest of CI uses**, because
 `@vscode/vsce` declares `engines: node >= 22`. npm only warns about an engine mismatch, so those
 jobs ran on 20 and worked by luck: vsce 4 calls `util.styleText`, which recent 20.x happens to
-carry and 18 does not. The test matrix stays [18, 20] — that is the extension host's Node, which is
-a different question from the packaging tool's.
+carry and 18 does not.
+
+The test matrix is [18, 20, 22] — the extension host's Node, which is a different question from the
+packaging tool's, but which now has to include 22 for a reason of its own: `node --test <directory>`
+means "run that path as a file" there, not "every test file under it". `npm test` names the files
+with a glob instead. On a [18, 20] matrix that break was invisible, and it is the failure mode to
+expect from the test runner generally — it is the one part of Node that is still changing shape.
 
 ## The icon
 
