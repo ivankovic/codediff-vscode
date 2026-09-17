@@ -27,11 +27,10 @@
  * morning. The download is checked against the release's own SHA256SUMS.txt, which the codediff
  * release workflow publishes for exactly this kind of consumer.
  *
- * The pin is v0.0.13, which does not exist yet, and that is deliberate: v0.0.12 was tagged on
- * 2026-09-09, before codediff's release workflow gained either the SHA256SUMS.txt job or the
- * aarch64-unknown-linux-gnu target. Bundling therefore starts working with the first release cut
- * after those landed. Until then this script fails loudly with a 404 rather than producing a VSIX
- * with no binary in it, which is the outcome to prefer.
+ * The pin is v0.0.13, the first codediff release that carries everything this script needs: a
+ * SHA256SUMS.txt and all five archives, aarch64-unknown-linux-gnu among them. v0.0.12 was tagged
+ * on 2026-09-09, before the release workflow gained either, so pinning back to it 404s - which is
+ * the designed failure, rather than quietly producing a VSIX with no binary in it.
  */
 
 import { createHash } from 'node:crypto';

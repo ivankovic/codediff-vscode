@@ -7,9 +7,11 @@ Notable changes to the CodeDiff extension. The format follows
 Changes to the `codediff` CLI itself live in
 [its own repository](https://github.com/ivankovic/codediff); this file covers the extension.
 
-## [Unreleased]
+## [0.0.1] - 2026-09-17
 
-Everything below is the state of the extension before its first Marketplace release.
+The first published release. Nothing below is a change from an earlier version, because there is
+no earlier published version - it is what the extension does the day it reaches the Marketplace
+and Open VSX.
 
 ### Added
 

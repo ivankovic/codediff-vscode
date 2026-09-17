@@ -13,6 +13,9 @@ eslint.config.mjs
 .editorconfig
 .gitignore
 CONTRIBUTING.md
+# The release plumbing. CHANGELOG.md is not here - vsce turns it into the Marketplace
+# listing's "Changelog" tab - but nothing in a VSIX can run make.
+Makefile
 # The download script runs at package time, before vsce reads this file; `bin/` is its output and
 # is the one thing here that MUST ship in a platform-specific VSIX.
 scripts/**

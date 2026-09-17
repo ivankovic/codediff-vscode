@@ -27,7 +27,21 @@ can run outside a VS Code host; treat those parts as reviewed rather than proven
 | Diffing against a git revision, from the SCM view | ✅ works |
 | Diffing the working copy against the last save | ✅ works |
 | Install prompt when the binary is missing | ✅ works |
-| Bundled binary, per platform | ✅ built, not published — see [Requirements](#requirements) |
+| Bundled binary, per platform | ✅ works — see [Requirements](#requirements) |
+
+## Installing
+
+Search for **CodeDiff** in the Extensions view, or:
+
+* VS Code — [the Marketplace listing](https://marketplace.visualstudio.com/items?itemName=ivankovic.codediff),
+  or `code --install-extension ivankovic.codediff`.
+* VSCodium, Cursor, Windsurf and other non-Microsoft builds —
+  [Open VSX](https://open-vsx.org/extension/ivankovic/codediff), which those editors search by
+  default.
+* Any editor, offline — download a `.vsix` from
+  [the releases page](https://github.com/ivankovic/codediff-vscode/releases) and install it with
+  `code --install-extension codediff-<platform>.vsix`. Take the one matching your platform to get
+  the bundled binary, or `codediff-fallback.vsix` to use a `codediff` from `PATH`.
 
 ## Requirements
 

@@ -116,3 +116,101 @@ jobs:
         with:
           files: "*.vsix"
           generate_release_notes: true
+
+  # Publishing is two jobs, not one, and neither depends on the other. A Marketplace publish that
+  # succeeds followed by an Open VSX publish that fails would, in a single job, leave the re-run
+  # dead on "version already exists" - and a version can never be republished. Split, the re-run
+  # touches only the registry that actually failed.
+  #
+  # Both publish the VSIXs the jobs above built rather than repackaging: the execute-bit check and
+  # the no-binary-in-the-fallback check ran on those exact files, so those are the files that
+  # should reach users.
+  publish-marketplace:
+    name: publish to the VS Marketplace
+    runs-on: ubuntu-latest
+    needs: [platform, fallback]
+    if: github.ref_type == 'tag'
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          # 22 because @vscode/vsce declares `engines: node >= 22`; see the note in ci.yml.
+          node-version: 22
+
+      # An unset secret is an empty string, not an error, and `vsce publish` with an empty PAT
+      # fails somewhere inside an HTTP 401 that reads like an outage. Say which secret is missing,
+      # before anything is attempted.
+      - name: VSCE_PAT is set
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          if [ -z "$VSCE_PAT" ]; then
+            echo "::error::VSCE_PAT is not set. Add an Azure DevOps personal access token"
+            echo "::error::(Organization: all accessible, Scopes: Marketplace -> Manage) as a"
+            echo "::error::repository secret named VSCE_PAT. See CONTRIBUTING.md."
+            exit 1
+          fi
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: vsix-*
+          merge-multiple: true
+
+      # One invocation for all six. vsce takes repeated --packagePath precisely so that a
+      # platform-specific extension's builds land as one version rather than six racing ones.
+      - name: vsce publish
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          args=""
+          for vsix in *.vsix; do
+            args="$args --packagePath $vsix"
+          done
+          echo "publishing:$args"
+          npx --yes @vscode/vsce publish $args
+
+  # Open VSX is what VSCodium, Cursor, Windsurf and the other non-Microsoft builds install from.
+  # Skipping it would cut out a real share of users for one more job.
+  publish-openvsx:
+    name: publish to Open VSX
+    runs-on: ubuntu-latest
+    needs: [platform, fallback]
+    if: github.ref_type == 'tag'
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: OVSX_PAT is set
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: |
+          if [ -z "$OVSX_PAT" ]; then
+            echo "::error::OVSX_PAT is not set. Create an Eclipse Foundation account, sign the"
+            echo "::error::publisher agreement, generate a token at https://open-vsx.org/user-settings/tokens"
+            echo "::error::and add it as a repository secret named OVSX_PAT. See CONTRIBUTING.md."
+            exit 1
+          fi
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: vsix-*
+          merge-multiple: true
+
+      # Idempotent on purpose: the namespace has to exist before the first publish and must not
+      # break every release after it. `create-namespace` fails with a 4xx once it is there, which
+      # is the expected outcome on all but the first run.
+      - name: Ensure the namespace exists
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: npx --yes ovsx create-namespace ivankovic -p "$OVSX_PAT" || echo "namespace already exists"
+
+      # A loop rather than one command: `ovsx publish` takes a single package, and a per-file loop
+      # also names which target failed.
+      - name: ovsx publish
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: |
+          for vsix in *.vsix; do
+            echo "=== $vsix ==="
+            npx --yes ovsx publish "$vsix" -p "$OVSX_PAT"
+          done

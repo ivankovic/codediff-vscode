@@ -29,6 +29,9 @@ npm test                 # compile + node --test
 CI additionally runs `vsce package`, which catches a broken manifest or a `.vscodeignore` that
 excludes something the extension needs — neither of which the other three can see.
 
+`make check` runs all four in that order, and is what `make deploy` gates on. The `vsce` half
+needs Node 22; see [Releasing](#releasing).
+
 ## Architecture, and why it is split this way
 
 | File | Imports `vscode`? | Why |
@@ -128,35 +131,59 @@ expect from the test runner generally — it is the one part of Node that is sti
 to that script, not to a binary, and the reasoning behind the design — including which richer
 pictures were tried and discarded for being illegible at 32px — is in its docstring.
 
-## Publishing
+## Releasing
 
-Not automated yet, deliberately — it needs credentials this repository does not hold.
+`make deploy` is the whole of it. It refuses a dirty tree, refuses a HEAD that does not match
+`origin/main`, refuses a version that is already tagged or that `CHANGELOG.md` has no section for,
+runs the four gates, and then tags `v<version>` and pushes the tag. It publishes nothing itself.
 
-One-time, to get a publisher at all:
+The tag is what starts a release. `release.yml` builds the five platform VSIXs and the target-less
+fallback, attaches all six to a GitHub Release, and publishes those same six files to the
+Marketplace and to Open VSX.
+
+**Publishing the files CI built, rather than repackaging, is the point of that split.** The two
+checks that matter — the execute bit surviving into the archive, and the fallback carrying no
+binary — only ever ran on CI's artefacts, so those are the artefacts that should reach users.
+
+The version number is the one irreversible part. A Marketplace version can never be republished or
+reused, only superseded, which is why `deploy-checks` would rather fail on a missing changelog
+section than let a number through.
+
+### Credentials, once
+
+Both tokens live as repository secrets, not on anybody's laptop. The publish jobs check each one is
+non-empty before they do anything, because an unset secret is an empty string rather than an error
+and an empty token fails much later, as an HTTP 401 that reads like an outage.
+
+**`VSCE_PAT`** — the Marketplace:
 
 1. An Azure DevOps organization, then a personal access token with **Organization: All accessible
-   organizations** and **Scopes: Custom defined → Marketplace → Manage**. Both of those are easy to
-   get wrong and the failure is a permissions error much later.
+   organizations** and **Scopes: Custom defined → Marketplace → Manage**. Both are easy to get
+   wrong and the failure is a permissions error much later.
 2. A publisher at <https://marketplace.visualstudio.com/manage> whose ID is `ivankovic`, matching
    `publisher` in `package.json`. The ID cannot be changed afterwards.
-3. `vsce login ivankovic`, pasting the token.
+3. Add the token as the `VSCE_PAT` repository secret.
 
-Then, per release — tag, let `release.yml` build the six VSIXs, and publish the packages it built
-rather than repackaging:
+**`OVSX_PAT`** — Open VSX, which is what VSCodium, Cursor and Windsurf install from:
+
+1. An Eclipse Foundation account, with the publisher agreement signed.
+2. A token from <https://open-vsx.org/user-settings/tokens>, added as the `OVSX_PAT` secret.
+3. The namespace is created by the workflow itself — `ovsx create-namespace ivankovic` runs on
+   every release and is expected to fail after the first.
+
+### Doing it by hand
+
+If a publish job fails and you would rather finish it locally, publish the artefacts from the
+GitHub Release rather than building new ones:
 
 ```sh
-vsce publish --packagePath codediff-linux-x64.vsix    # once per target,
-vsce publish --packagePath codediff-fallback.vsix     # the fallback included
+vsce publish --packagePath codediff-linux-x64.vsix --packagePath codediff-fallback.vsix ...
+ovsx publish codediff-linux-x64.vsix -p "$OVSX_PAT"
 ```
 
-The target-less fallback is what the Marketplace serves to any platform with no package of its own,
-which is why `alpine-x64` is absent from the release matrix rather than built and left broken.
-
-* `ovsx publish` → Open VSX, which is what VSCodium, Cursor and Windsurf install from. It needs an
-  Eclipse Foundation account and `ovsx create-namespace ivankovic` first. Skipping it cuts out a
-  real share of users for one extra step.
-
-Both should become a release workflow once the publisher accounts exist.
+`make package-all` reproduces all six locally when a build job is the thing that broke. It needs
+Node 22 — as does anything running `vsce` — and it deletes `bin/` afterwards, because a stale
+`bin/` is how a glibc binary ends up inside the fallback VSIX that musl users are served.
 
 ## Licence
 
