@@ -151,18 +151,42 @@ section than let a number through.
 
 ### Credentials, once
 
-Both tokens live as repository secrets, not on anybody's laptop. The publish jobs check each one is
-non-empty before they do anything, because an unset secret is an empty string rather than an error
-and an empty token fails much later, as an HTTP 401 that reads like an outage.
+The two registries authenticate differently, and only Open VSX uses a token.
 
-**`VSCE_PAT`** — the Marketplace:
+**The Marketplace — Microsoft Entra ID, no token.** Azure DevOps retires *global* personal access
+tokens on **2026-12-01**, and a global PAT — the "All accessible organizations" kind — is the only
+sort the Marketplace has ever accepted. Organization-scoped tokens are not accepted for publishing;
+[microsoft/vscode#322741](https://github.com/microsoft/vscode/issues/322741) is the open request to
+change that. So the PAT route has an expiry date on it and is not worth setting up. Entra with
+workload identity federation is what replaces it, and it stores no secret at all: `azure/login`
+trades the workflow's own OIDC token for a short-lived one at run time.
 
-1. An Azure DevOps organization, then a personal access token with **Organization: All accessible
-   organizations** and **Scopes: Custom defined → Marketplace → Manage**. Both are easy to get
-   wrong and the failure is a permissions error much later.
-2. A publisher at <https://marketplace.visualstudio.com/manage> whose ID is `ivankovic`, matching
-   `publisher` in `package.json`. The ID cannot be changed afterwards.
-3. Add the token as the `VSCE_PAT` repository secret.
+1. A **user-assigned managed identity** in the Azure portal. Not an app registration — those
+   authenticate fine and then fail at publish with `InvalidAccessException: The requested operation
+   is not allowed`. Record its **Client ID** and **Tenant ID**.
+2. On that identity, **Settings → Federated credentials → Add**, scenario *GitHub Actions deploying
+   Azure resources*. Entity type **Environment** (not Branch, not Tag), organisation `ivankovic`,
+   repository `codediff-vscode`, environment name `marketplace-publish` — which is exactly what
+   `publish-marketplace` declares as its `environment:`. The two must agree or Entra will not
+   exchange the token.
+3. **Register the identity with Azure DevOps once**, by signing in as it and calling the profile
+   API. This is the step with no substitute:
+
+   ```sh
+   az login --identity            # or however you authenticate as that identity
+   az rest -u https://app.vssps.visualstudio.com/_apis/profile/profiles/me \
+     --resource 499b84ac-1321-427f-aa17-267ca6975798
+   ```
+
+   Keep the `id` from the response. **That is the only identifier the publisher's member search
+   recognises** — the Client ID, the Tenant ID and the resource ID all fail to find anything.
+4. A publisher at <https://marketplace.visualstudio.com/manage> whose ID is `ivankovic`, matching
+   `publisher` in `package.json` (the ID cannot be changed afterwards), then add that `id` as a
+   member with the **Contributor** role.
+5. Add the Client ID and Tenant ID as the `AZURE_CLIENT_ID` and `AZURE_TENANT_ID` repository
+   secrets. They are identifiers rather than credentials, but the job checks both are non-empty
+   before it starts, because an unset one is an empty string and fails later inside an OIDC
+   exchange whose error names nothing useful.
 
 **`OVSX_PAT`** — Open VSX, which is what VSCodium, Cursor and Windsurf install from:
 
@@ -177,13 +201,16 @@ If a publish job fails and you would rather finish it locally, publish the artef
 GitHub Release rather than building new ones:
 
 ```sh
-vsce publish --skip-duplicate --packagePath *.vsix
+az login                                  # as the identity, or as yourself if you are a publisher member
+vsce publish --skip-duplicate --azure-credential --packagePath *.vsix
 ovsx publish --skip-duplicate --packagePath *.vsix -p "$OVSX_PAT"
 ```
 
 `--packagePath` is variadic — one flag, many paths — which is how the six builds land as one
 version. `--skip-duplicate` steps over whatever the failed job already published; it is safe here
 precisely because nothing else can make this command run twice on one version.
+`--azure-credential` is what makes `vsce` read the Entra token `az login` left behind rather than
+look for a `VSCE_PAT` that no longer exists.
 
 If a publish got far enough to be *partly* wrong rather than partly done — a bad README, the wrong
 binary in a target — the answer is a new version, not a retry. A Marketplace version can be

@@ -125,28 +125,44 @@ jobs:
   # Both publish the VSIXs the jobs above built rather than repackaging: the execute-bit check and
   # the no-binary-in-the-fallback check ran on those exact files, so those are the files that
   # should reach users.
+  # Authenticates with Microsoft Entra ID over OIDC, not with a personal access token. Azure
+  # DevOps retires global PATs - the "All accessible organizations" kind the Marketplace requires
+  # - on 2026-12-01, and organization-scoped PATs are not accepted for publishing
+  # (microsoft/vscode#322741 is the open request for that). Entra is the path Microsoft documents
+  # for after that date, and it stores no secret at all: the federated credential trades this
+  # workflow's OIDC token for a short-lived one at run time.
+  #
+  # `environment:` is load-bearing, not decoration. The federated credential is issued against a
+  # subject that names this repository *and this environment*, so a job running without it - or
+  # under a different name - presents a token Entra will not exchange.
   publish-marketplace:
     name: publish to the VS Marketplace
     runs-on: ubuntu-latest
     needs: [platform, fallback]
     if: github.ref_type == 'tag'
+    environment: marketplace-publish
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - uses: actions/setup-node@v4
         with:
           # 22 because @vscode/vsce declares `engines: node >= 22`; see the note in ci.yml.
           node-version: 22
 
-      # An unset secret is an empty string, not an error, and `vsce publish` with an empty PAT
-      # fails somewhere inside an HTTP 401 that reads like an outage. Say which secret is missing,
-      # before anything is attempted.
-      - name: VSCE_PAT is set
+      # Neither value is a secret in the usual sense - they are identifiers, not credentials - but
+      # an unset one is an empty string rather than an error, and `azure/login` with an empty
+      # client id fails inside an OIDC exchange whose message names nothing useful. Say which is
+      # missing, before anything is attempted.
+      - name: The Entra identity is configured
         env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
         run: |
-          if [ -z "$VSCE_PAT" ]; then
-            echo "::error::VSCE_PAT is not set. Add an Azure DevOps personal access token"
-            echo "::error::(Organization: all accessible, Scopes: Marketplace -> Manage) as a"
-            echo "::error::repository secret named VSCE_PAT. See CONTRIBUTING.md."
+          if [ -z "$AZURE_CLIENT_ID" ] || [ -z "$AZURE_TENANT_ID" ]; then
+            echo "::error::AZURE_CLIENT_ID and AZURE_TENANT_ID must both be set as repository"
+            echo "::error::secrets, and the identity they name must be a Contributor on the"
+            echo "::error::ivankovic publisher. See CONTRIBUTING.md."
             exit 1
           fi
 
@@ -155,6 +171,14 @@ jobs:
           pattern: vsix-*
           merge-multiple: true
 
+      # `allow-no-subscriptions` because the identity needs no role on any Azure resource: the
+      # only thing it is ever used for is presenting an Entra token to the Marketplace.
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+
       # One invocation for all six. `--packagePath` is variadic - one flag, many paths - which is
       # how a platform-specific extension's builds land as one version rather than six racing
       # ones. Repeating the flag is not the same thing and is not what vsce documents.
@@ -162,12 +186,13 @@ jobs:
       # `--skip-duplicate` makes a re-run survivable. The only ways this job runs are a fresh tag
       # and a manual re-run of a failed release, and in both an already-published file is exactly
       # the thing to step over - a Marketplace version can never be republished.
+      #
+      # `--azure-credential` is what tells vsce to use the token `azure/login` just put in the
+      # environment instead of looking for VSCE_PAT.
       - name: vsce publish
-        env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
         run: |
           ls -la *.vsix
-          npx --yes @vscode/vsce publish --skip-duplicate --packagePath *.vsix
+          npx --yes @vscode/vsce publish --skip-duplicate --azure-credential --packagePath *.vsix
 
   # Open VSX is what VSCodium, Cursor, Windsurf and the other non-Microsoft builds install from.
   # Skipping it would cut out a real share of users for one more job.
