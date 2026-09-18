@@ -1,5 +1,6 @@
-# One-time bootstrap, run by hand. Prints the Azure DevOps profile id of the Entra identity this
-# repository publishes as - the value the Marketplace publisher's member search wants.
+# Bootstrap and preflight, run by hand. Prints the Azure DevOps profile id of the Entra identity
+# this repository publishes as - the value the Marketplace publisher's member search wants - and
+# then checks that the identity actually has publish rights on the publisher.
 #
 # **Why this has to be a workflow rather than two lines on a laptop.** The identity is a
 # *user-assigned managed identity*, which has no secret to sign in with: `az login --identity`
@@ -16,13 +17,18 @@ on: workflow_dispatch
 
 jobs:
   profile:
-    name: print the Azure DevOps profile id
+    name: profile id, and publish rights
     runs-on: ubuntu-latest
     environment: marketplace-publish
     permissions:
       id-token: write
       contents: read
     steps:
+      - uses: actions/setup-node@v4
+        with:
+          # 22 because @vscode/vsce declares `engines: node >= 22`; see the note in ci.yml.
+          node-version: 22
+
       - name: The Entra identity is configured
         env:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -58,3 +64,10 @@ jobs:
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           echo "$id" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      # The whole Marketplace auth chain, end to end, without publishing: it fails unless the
+      # identity above is a member of the `ivankovic` publisher with a role that can publish. Worth
+      # having because the alternative way to discover that is a release, and a Marketplace version
+      # number can be superseded but never reused.
+      - name: The identity can publish as ivankovic
+        run: npx --yes @vscode/vsce verify-pat ivankovic --azure-credential
