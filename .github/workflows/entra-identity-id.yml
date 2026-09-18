@@ -40,9 +40,12 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           allow-no-subscriptions: true
 
-      # 499b84ac-1321-427f-aa17-267ca6975798 is Azure DevOps' own resource id. The call has a side
-      # effect as well as a result: it is what makes Azure DevOps mint a profile for this identity
-      # in the first place, so until it has run once the publisher's member search finds nothing.
+      # 499b84ac-1321-427f-aa17-267ca6975798 is Azure DevOps' own resource id.
+      #
+      # `VSS011031: There is no profile for the authenticated user` here means the identity has
+      # not been added to an Azure DevOps organization yet. A service principal does not appear in
+      # Azure DevOps on its own - it has to be added explicitly, because it cannot sign in
+      # interactively - and this call reads a profile rather than creating one.
       - name: Azure DevOps profile
         run: |
           id=$(az rest \

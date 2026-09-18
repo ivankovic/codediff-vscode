@@ -208,20 +208,32 @@ repository — see their [install page](https://learn.microsoft.com/cli/azure/in
    non-empty first, because an unset one is an empty string and fails later inside an OIDC exchange
    whose error names nothing useful.
 
-4. **Register the identity with Azure DevOps**, by running the **Entra identity id** workflow
+4. **Add the identity to an Azure DevOps organization.** Entra removes the PAT, not the
+   organization. A service principal does not appear in Azure DevOps on its own — Microsoft calls
+   this *materialization*, and it has to be explicit, because a service principal cannot sign in
+   interactively the way a person can. Until it is done, every Azure DevOps call answers
+   `VSS011031: There is no profile for the authenticated user in the system`.
+
+   An organization at <https://aex.dev.azure.com> (any name; it holds no code and no pipelines),
+   then **Organization Settings → Users → Add users**, entering the identity's *display name* —
+   `codediff-marketplace` — with access level **Basic**, which is free for the first five users.
+   The organization has to be connected to the same tenant the identity lives in; one created
+   while signed in as yourself will be.
+
+5. **Read the identity's Azure DevOps profile id**, by running the **Entra identity id** workflow
    (`.github/workflows/entra-identity-id.yml`) from the Actions tab. It prints an id to the run
    summary.
 
    This cannot be done from a laptop. A user-assigned managed identity has no secret to sign in
    with — `az login --identity` reaches the instance metadata endpoint, which exists only inside
    Azure — so the one thing that can authenticate as it is a job holding an OIDC token the
-   federated credential trusts. A green run also proves steps 2 and 3 line up, before a release
-   depends on it.
+   federated credential trusts. A green run also proves steps 2, 3 and 4 all line up, before a
+   release depends on it.
 
    **Keep that id.** It is the only identifier the publisher's member search recognises; the Client
    ID, the Tenant ID and the resource ID all come back empty.
 
-5. A publisher at <https://marketplace.visualstudio.com/manage> whose ID is `ivankovic`, matching
+6. A publisher at <https://marketplace.visualstudio.com/manage> whose ID is `ivankovic`, matching
    `publisher` in `package.json` (the ID cannot be changed afterwards), then add that id as a
    member with the **Contributor** role.
 
