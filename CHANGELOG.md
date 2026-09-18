@@ -19,8 +19,8 @@ and Open VSX.
   update and move, with a "moved to line N" hover and the nearest enclosing declaration.
 - `CodeDiff: Diff Two Files…`, `Diff With HEAD`, `Diff With Revision…`, `Diff With Last Saved` and
   `Clear Highlights`, the git-aware three also on the Source Control and editor-tab context menus.
-- Platform-specific builds that bundle the `codediff` binary for Linux, macOS and Windows x64,
-  falling back to a `PATH` lookup everywhere else. This removes one failure in particular: a VS Code
+- Platform-specific builds that bundle the `codediff` binary (v0.0.14) for Linux, macOS and
+  Windows x64, falling back to a `PATH` lookup everywhere else. This removes one failure in particular: a VS Code
   launched from Finder or the Dock does not inherit a login shell's `PATH`, so a binary installed to
   `~/.cargo/bin` is invisible to it.
 - A prompt with an install link when no binary can be found at all.

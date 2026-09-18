@@ -3,7 +3,7 @@
   "displayName": "CodeDiff",
   "description": "Syntax-aware diff highlighting, backed by the codediff CLI",
   "version": "0.0.1",
-  "codediffVersion": "v0.0.13",
+  "codediffVersion": "v0.0.14",
   "publisher": "ivankovic",
   "license": "AGPL-3.0-or-later",
   "author": "Marko Ivankovic",

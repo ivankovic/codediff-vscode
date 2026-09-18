@@ -106,10 +106,12 @@ Two things here are easy to get wrong and are checked rather than assumed:
   and that table list the same targets, because a target in one but not the other either fails the
   build or silently stops publishing a platform.
 
-The pinned version is `v0.0.13`, and it now carries everything `fetch-binary` needs: a
-`SHA256SUMS.txt` and all five archives, `aarch64-unknown-linux-gnu` among them. v0.0.12 predates
-both, so pinning back to it would 404 — which is the designed failure, rather than quietly
-producing a VSIX with no binary.
+`codediffVersion` in `package.json` is the pin, and moving it is a deliberate, separate release of
+this extension: a platform build ships a frozen CLI, so nobody gets a newer codediff until that
+happens. A release is only usable as a pin if it carries a `SHA256SUMS.txt` and all five archives,
+`aarch64-unknown-linux-gnu` among them — codediff's release workflow gained both in v0.0.13, so
+anything older 404s, which is the designed failure rather than quietly producing a VSIX with no
+binary.
 
 CI builds only the binary-free fallback VSIX, so a pull request never depends on a published tag of
 another repository. The five platform VSIXs are built in `release.yml`, on a tag.
