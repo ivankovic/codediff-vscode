@@ -161,32 +161,55 @@ change that. So the PAT route has an expiry date on it and is not worth setting 
 workload identity federation is what replaces it, and it stores no secret at all: `azure/login`
 trades the workflow's own OIDC token for a short-lived one at run time.
 
-1. A **user-assigned managed identity** in the Azure portal. Not an app registration — those
-   authenticate fine and then fail at publish with `InvalidAccessException: The requested operation
-   is not allowed`. Record its **Client ID** and **Tenant ID**.
-2. On that identity, **Settings → Federated credentials → Add**, scenario *GitHub Actions deploying
-   Azure resources*. Entity type **Environment** (not Branch, not Tag), organisation `ivankovic`,
-   repository `codediff-vscode`, environment name `marketplace-publish` — which is exactly what
-   `publish-marketplace` declares as its `environment:`. The two must agree or Entra will not
-   exchange the token.
-3. **Register the identity with Azure DevOps once**, by signing in as it and calling the profile
-   API. This is the step with no substitute:
+The whole Azure side is `az`, which on Ubuntu is `sudo apt-get install azure-cli` from Microsoft's
+repository — see their [install page](https://learn.microsoft.com/cli/azure/install-azure-cli-linux).
+
+1. A **user-assigned managed identity**. Not an app registration — those authenticate fine and then
+   fail at publish with `InvalidAccessException: The requested operation is not allowed`.
 
    ```sh
-   az login --identity            # or however you authenticate as that identity
-   az rest -u https://app.vssps.visualstudio.com/_apis/profile/profiles/me \
-     --resource 499b84ac-1321-427f-aa17-267ca6975798
+   az login
+   az group create --name codediff-publish --location westeurope
+   az identity create --name codediff-marketplace --resource-group codediff-publish \
+     --query '{clientId:clientId, tenantId:tenantId}' -o table
    ```
 
-   Keep the `id` from the response. **That is the only identifier the publisher's member search
-   recognises** — the Client ID, the Tenant ID and the resource ID all fail to find anything.
-4. A publisher at <https://marketplace.visualstudio.com/manage> whose ID is `ivankovic`, matching
-   `publisher` in `package.json` (the ID cannot be changed afterwards), then add that `id` as a
+2. A federated credential on it, trusting this repository's `marketplace-publish` environment.
+   **Environment, not branch or tag** — the subject below is what `publish-marketplace` presents,
+   and Entra matches it exactly:
+
+   ```sh
+   az identity federated-credential create \
+     --name github-marketplace-publish \
+     --identity-name codediff-marketplace --resource-group codediff-publish \
+     --issuer https://token.actions.githubusercontent.com \
+     --subject repo:ivankovic/codediff-vscode:environment:marketplace-publish \
+     --audiences api://AzureADTokenExchange
+   ```
+
+3. The GitHub side: an environment named `marketplace-publish`
+   (<https://github.com/ivankovic/codediff-vscode/settings/environments>, no protection rules
+   needed), and the Client ID and Tenant ID as the `AZURE_CLIENT_ID` and `AZURE_TENANT_ID`
+   repository secrets. They are identifiers rather than credentials, but each job checks both are
+   non-empty first, because an unset one is an empty string and fails later inside an OIDC exchange
+   whose error names nothing useful.
+
+4. **Register the identity with Azure DevOps**, by running the **Entra identity id** workflow
+   (`.github/workflows/entra-identity-id.yml`) from the Actions tab. It prints an id to the run
+   summary.
+
+   This cannot be done from a laptop. A user-assigned managed identity has no secret to sign in
+   with — `az login --identity` reaches the instance metadata endpoint, which exists only inside
+   Azure — so the one thing that can authenticate as it is a job holding an OIDC token the
+   federated credential trusts. A green run also proves steps 2 and 3 line up, before a release
+   depends on it.
+
+   **Keep that id.** It is the only identifier the publisher's member search recognises; the Client
+   ID, the Tenant ID and the resource ID all come back empty.
+
+5. A publisher at <https://marketplace.visualstudio.com/manage> whose ID is `ivankovic`, matching
+   `publisher` in `package.json` (the ID cannot be changed afterwards), then add that id as a
    member with the **Contributor** role.
-5. Add the Client ID and Tenant ID as the `AZURE_CLIENT_ID` and `AZURE_TENANT_ID` repository
-   secrets. They are identifiers rather than credentials, but the job checks both are non-empty
-   before it starts, because an unset one is an empty string and fails later inside an OIDC
-   exchange whose error names nothing useful.
 
 **`OVSX_PAT`** — Open VSX, which is what VSCodium, Cursor and Windsurf install from:
 

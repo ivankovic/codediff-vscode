@@ -1,0 +1,57 @@
+# One-time bootstrap, run by hand. Prints the Azure DevOps profile id of the Entra identity this
+# repository publishes as - the value the Marketplace publisher's member search wants.
+#
+# **Why this has to be a workflow rather than two lines on a laptop.** The identity is a
+# *user-assigned managed identity*, which has no secret to sign in with: `az login --identity`
+# works only from inside Azure, where the instance metadata endpoint exists. The one place that
+# can authenticate as it is a job holding a GitHub OIDC token the federated credential trusts -
+# which is this job, and which is exactly how the publish job authenticates too. So a green run
+# here also proves the federated credential, the environment name and the two secrets all line up,
+# before any of it matters to a release.
+#
+# Safe to re-run, and safe to leave in place: it publishes nothing and writes nothing.
+name: Entra identity id
+
+on: workflow_dispatch
+
+jobs:
+  profile:
+    name: print the Azure DevOps profile id
+    runs-on: ubuntu-latest
+    environment: marketplace-publish
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: The Entra identity is configured
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        run: |
+          if [ -z "$AZURE_CLIENT_ID" ] || [ -z "$AZURE_TENANT_ID" ]; then
+            echo "::error::AZURE_CLIENT_ID and AZURE_TENANT_ID must both be set as repository"
+            echo "::error::secrets. See CONTRIBUTING.md."
+            exit 1
+          fi
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+
+      # 499b84ac-1321-427f-aa17-267ca6975798 is Azure DevOps' own resource id. The call has a side
+      # effect as well as a result: it is what makes Azure DevOps mint a profile for this identity
+      # in the first place, so until it has run once the publisher's member search finds nothing.
+      - name: Azure DevOps profile
+        run: |
+          id=$(az rest \
+            -u https://app.vssps.visualstudio.com/_apis/profile/profiles/me \
+            --resource 499b84ac-1321-427f-aa17-267ca6975798 \
+            --query id -o tsv)
+          echo "Add this id as a Contributor on the ivankovic publisher:"
+          echo "  $id"
+          echo "### Azure DevOps profile id" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "$id" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
