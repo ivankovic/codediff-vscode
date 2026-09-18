@@ -214,11 +214,39 @@ repository — see their [install page](https://learn.microsoft.com/cli/azure/in
    interactively the way a person can. Until it is done, every Azure DevOps call answers
    `VSS011031: There is no profile for the authenticated user in the system`.
 
-   An organization at <https://aex.dev.azure.com> (any name; it holds no code and no pipelines),
-   then **Organization Settings → Users → Add users**, entering the identity's *display name* —
-   `codediff-marketplace` — with access level **Basic**, which is free for the first five users.
-   The organization has to be connected to the same tenant the identity lives in; one created
-   while signed in as yourself will be.
+   **Creating the organization is the one step with no CLI.** `az devops` manages projects,
+   teams and pipelines inside an organization; it has no command that makes one. Create it at
+   <https://aex.dev.azure.com> — any name, it holds no code and no pipelines. It has to be
+   connected to the same tenant the identity lives in, which one created while signed in as
+   yourself will be.
+
+   Adding the identity *is* scriptable, through the ServicePrincipalEntitlements API. Note
+   `originId`: it is the identity's **principalId**, the service principal's object id, not its
+   client id — the two are easy to confuse and the wrong one fails as "not found".
+
+   ```sh
+   org=<the organization name>
+   principal=$(az identity show --name codediff-marketplace \
+     --resource-group codediff-publish --query principalId -o tsv)
+
+   az rest --method post \
+     --resource 499b84ac-1321-427f-aa17-267ca6975798 \
+     --url "https://vsaex.dev.azure.com/$org/_apis/serviceprincipalentitlements?api-version=7.1-preview.1" \
+     --headers Content-Type=application/json \
+     --body "{
+       \"accessLevel\": {\"accountLicenseType\": \"stakeholder\"},
+       \"servicePrincipal\": {
+         \"origin\": \"aad\",
+         \"originId\": \"$principal\",
+         \"subjectKind\": \"servicePrincipal\"
+       }
+     }"
+   ```
+
+   `stakeholder` is the free access level and is what Microsoft's own example uses. If a later
+   publish fails on licensing, `express` is Basic, free for the first five identities in an
+   organization. In the portal the same thing is **Organization Settings → Users → Add users**,
+   entering the identity's *display name*, `codediff-marketplace`.
 
 5. **Read the identity's Azure DevOps profile id**, by running the **Entra identity id** workflow
    (`.github/workflows/entra-identity-id.yml`) from the Actions tab. It prints an id to the run
