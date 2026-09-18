@@ -175,17 +175,31 @@ repository — see their [install page](https://learn.microsoft.com/cli/azure/in
    ```
 
 2. A federated credential on it, trusting this repository's `marketplace-publish` environment.
-   **Environment, not branch or tag** — the subject below is what `publish-marketplace` presents,
-   and Entra matches it exactly:
+   Entra matches the subject as an exact string, and there are two ways to get it wrong.
+
+   **Environment, not branch or tag** — that is the part of the subject the jobs control, by
+   declaring `environment: marketplace-publish`.
+
+   **The owner and repository carry their numeric ids.** Every repository created after
+   2026-07-15 gets GitHub's *immutable* subject format, which appends the owner id and repo id so
+   that a rename or a recycled name cannot mint a matching token. A subject written from the names
+   alone is rejected with `AADSTS700213: No matching federated identity record found`. Read the
+   ids off the API rather than typing them:
 
    ```sh
+   owner=$(curl -sS https://api.github.com/users/ivankovic | jq -r .id)
+   repo=$(curl -sS https://api.github.com/repos/ivankovic/codediff-vscode | jq -r .id)
+
    az identity federated-credential create \
      --name github-marketplace-publish \
      --identity-name codediff-marketplace --resource-group codediff-publish \
      --issuer https://token.actions.githubusercontent.com \
-     --subject repo:ivankovic/codediff-vscode:environment:marketplace-publish \
+     --subject "repo:ivankovic@$owner/codediff-vscode@$repo:environment:marketplace-publish" \
      --audiences api://AzureADTokenExchange
    ```
+
+   If it is already wrong, the failing run prints the subject it actually presented — copy that
+   verbatim into `az identity federated-credential update --subject`.
 
 3. The GitHub side: an environment named `marketplace-publish`
    (<https://github.com/ivankovic/codediff-vscode/settings/environments>, no protection rules
