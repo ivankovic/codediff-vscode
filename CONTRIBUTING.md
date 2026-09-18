@@ -245,8 +245,21 @@ repository — see their [install page](https://learn.microsoft.com/cli/azure/in
 
    `stakeholder` is the free access level and is what Microsoft's own example uses. If a later
    publish fails on licensing, `express` is Basic, free for the first five identities in an
-   organization. In the portal the same thing is **Organization Settings → Users → Add users**,
-   entering the identity's *display name*, `codediff-marketplace`.
+   organization.
+
+   That call can fail on *the caller* rather than on the identity being added: `Identity <guid>
+   has not been materialized, please use interactive login over the browser first`, where the
+   guid is your own user. Materialization applies to people too — an Entra token for a user
+   Azure DevOps has never seen is refused. Check whether the guid is yours with
+   `az ad signed-in-user show --query id`; if it is, do this step in the portal instead
+   (**Organization Settings → Users → Add users**, entering the identity's *display name*,
+   `codediff-marketplace`), where the browser session is an identity the organization already
+   knows.
+
+   Also confirm under **Organization Settings → Microsoft Entra** that the organization is
+   connected to the same tenant as the identity. An organization created with a personal
+   Microsoft account is not backed by a directory, and a managed identity cannot be added to it
+   at all — identities can only come from the tenant the organization is connected to.
 
 5. **Read the identity's Azure DevOps profile id**, by running the **Entra identity id** workflow
    (`.github/workflows/entra-identity-id.yml`) from the Actions tab. It prints an id to the run
