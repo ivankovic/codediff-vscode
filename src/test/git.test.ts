@@ -1,11 +1,10 @@
-/*  This file is part of the CodeDiff code diffing tool.
+/*  This file is part of the OmniDiff code diffing tool.
  *
  *  Copyright (C) 2026 Marko Ivankovic
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU Affero General Public License as published
- *  by the Free Software Foundation, either version 3 of the License, or
- *  (at your option) any later version.
+ *  by the Free Software Foundation, version 3 of the License.
  *
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -19,7 +18,7 @@
 /**
  * Tests for `src/git.ts`, against a real throwaway repository.
  *
- * Unlike the codediff integration test, this one does not skip when its dependency is missing: git
+ * Unlike the omnidiff integration test, this one does not skip when its dependency is missing: git
  * is a hard requirement of the commands under test and of anyone developing the extension, so a
  * machine without it should fail here rather than quietly report a pass.
  */
@@ -48,7 +47,7 @@ function git(...args: string[]): void {
 }
 
 before(() => {
-  scratch = mkdtempSync(join(tmpdir(), 'codediff-git-test-'));
+  scratch = mkdtempSync(join(tmpdir(), 'omnidiff-git-test-'));
   root = join(scratch, 'repo');
   mkdirSync(join(root, 'src'), { recursive: true });
 
@@ -135,7 +134,7 @@ describe('showAtRevision', () => {
 });
 
 describe('materialize', () => {
-  it('keeps the original basename, so codediff can still pick a grammar', () => {
+  it('keeps the original basename, so omnidiff can still pick a grammar', () => {
     const into = join(scratch, 'materialize-basename');
     const written = materialize(Buffer.from('x\n'), '/somewhere/else/parser.ts', into);
     assert.equal(written, join(into, 'parser.ts'));
@@ -165,7 +164,7 @@ describe('materialize', () => {
     assert.notEqual(tui, diff);
     assert.equal(readFileSync(tui, 'utf8'), 'tui\n');
     assert.equal(readFileSync(diff, 'utf8'), 'diff\n');
-    // Both still end in the real basename, which is what codediff reads for the grammar.
+    // Both still end in the real basename, which is what omnidiff reads for the grammar.
     assert.ok(tui.endsWith('mod.rs') && diff.endsWith('mod.rs'));
   });
 
