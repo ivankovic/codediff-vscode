@@ -15,7 +15,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - run: npm ci
       - run: npx tsc -p ./ --noEmit
@@ -27,7 +27,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - run: npm ci
       - run: npm run lint
@@ -38,14 +38,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 18 is what VS Code 1.85 ships as its extension host, 20 is what newer builds use, and
-        # 22 is where they are going. All three have to work, because the extension runs on
-        # whichever the user's VS Code has.
-        #
-        # 22 is here for a second reason: `node --test <directory>` stopped meaning "every test
-        # file under here" and started meaning "run this path as a file", so the test script has
-        # to name the files. On [18, 20] alone that regression was invisible.
-        node: [18, 20, 22]
+        # The extension host's Node: VS Code 1.101, the oldest `engines.vscode` allows, runs
+        # extensions on Electron 35, Node 22.15. Add a version here when VS Code moves to a new
+        # major, since the extension then runs on either. 22 also catches the test runner's
+        # changes of shape: `node --test <directory>` there means "run this path as a file", so
+        # the test script names the files.
+        node: [22]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7

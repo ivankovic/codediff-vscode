@@ -45,8 +45,8 @@ check: compile lint test package
 # too-old Node gets as far as a confusing crash inside vsce rather than a refusal. The release
 # jobs pin Node 22 for the same reason; this is the local half of that guard.
 #
-# The test matrix stays [18, 20]: that is the extension host's Node, which is a different question
-# from the packaging tool's.
+# The extension host's Node is a different question, decided by `engines.vscode`; since VS Code 1.101
+# it is 22 as well (see CONTRIBUTING.md).
 define require-node-22
 	@node -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 22 ? 0 : 1)' || { \
 		echo "error: @vscode/vsce needs Node >= 22, found $$(node --version)" >&2; \
