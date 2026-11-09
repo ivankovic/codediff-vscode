@@ -1,5 +1,5 @@
 # Everything the published extension does not need. What ships is `out/*.js`, package.json,
-# README.md, LICENSE, and - in a platform-specific VSIX only - `bin/codediff`; the TypeScript
+# README.md, LICENSE, and - in a platform-specific VSIX only - `bin/omnidiff`; the TypeScript
 # sources, the tests and the CI config are in the repository for people, not for the VSIX.
 #
 # No `!` negation lines here, deliberately: .vscodeignore matches last-rule-wins, so a trailing
@@ -13,11 +13,17 @@ eslint.config.mjs
 .editorconfig
 .gitignore
 CONTRIBUTING.md
+# The release plumbing. CHANGELOG.md is not here - vsce turns it into the Marketplace
+# listing's "Changelog" tab - but nothing in a VSIX can run make.
+Makefile
 # The download script runs at package time, before vsce reads this file; `bin/` is its output and
 # is the one thing here that MUST ship in a platform-specific VSIX.
 scripts/**
+# The icon's generator. `icon.png` itself is NOT ignored - the manifest points at it and the
+# Marketplace listing needs it - but the script that draws it is for people, like scripts/.
+assets/**
 **/*.map
 **/*.ts
 # Built into out/ by `npm test`; nothing can run them from inside a VSIX.
 out/test/**
-.codediff.toml
+.omnidiff.toml

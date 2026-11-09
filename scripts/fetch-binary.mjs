@@ -1,12 +1,11 @@
 #!/usr/bin/env node
-/*  This file is part of the CodeDiff code diffing tool.
+/*  This file is part of the OmniDiff code diffing tool.
  *
  *  Copyright (C) 2026 Marko Ivankovic
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU Affero General Public License as published
- *  by the Free Software Foundation, either version 3 of the License, or
- *  (at your option) any later version.
+ *  by the Free Software Foundation, version 3 of the License.
  *
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,20 +17,19 @@
  */
 
 /**
- * Downloads the pinned codediff release binary for one VS Code target into `bin/`.
+ * Downloads the pinned omnidiff release binary for one VS Code target into `bin/`.
  *
  * Usage: `node scripts/fetch-binary.mjs <vsce-target>`, e.g. `linux-x64`.
  *
- * The version comes from `codediffVersion` in package.json, never from `latest`: a floating
+ * The version comes from `omnidiffVersion` in package.json, never from `latest`: a floating
  * version makes the VSIX unreproducible and couples an extension rebuild to whatever shipped that
- * morning. The download is checked against the release's own SHA256SUMS.txt, which the codediff
+ * morning. The download is checked against the release's own SHA256SUMS.txt, which the omnidiff
  * release workflow publishes for exactly this kind of consumer.
  *
- * The pin is v0.0.13, which does not exist yet, and that is deliberate: v0.0.12 was tagged on
- * 2026-09-09, before codediff's release workflow gained either the SHA256SUMS.txt job or the
- * aarch64-unknown-linux-gnu target. Bundling therefore starts working with the first release cut
- * after those landed. Until then this script fails loudly with a 404 rather than producing a VSIX
- * with no binary in it, which is the outcome to prefer.
+ * A release is usable as a pin only if it carries a SHA256SUMS.txt and all five archives,
+ * aarch64-unknown-linux-gnu among them; omnidiff's release workflow gained both in v0.0.13, so
+ * anything older 404s here - which is the designed failure, rather than quietly producing a VSIX
+ * with no binary in it.
  */
 
 import { createHash } from 'node:crypto';
@@ -40,7 +38,7 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-const REPOSITORY = 'ivankovic/codediff';
+const REPOSITORY = 'ivankovic/omnidiff';
 
 /**
  * VS Code's target names to Rust's triples.
@@ -51,7 +49,7 @@ const REPOSITORY = 'ivankovic/codediff';
  * `alpine-x64` is deliberately absent. VS Code Remote containers are often Alpine, and a
  * `linux-x64` VSIX carries a glibc binary that dies on musl with a loader error nobody can read.
  * Publishing nothing for that target makes the Marketplace serve the target-less fallback VSIX
- * instead, which finds codediff on PATH like any other unbundled install.
+ * instead, which finds omnidiff on PATH like any other unbundled install.
  */
 export const TARGETS = {
   'linux-x64': 'x86_64-unknown-linux-gnu',
@@ -86,20 +84,20 @@ async function main() {
 
   const root = new URL('..', import.meta.url).pathname;
   const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
-  const version = manifest.codediffVersion;
+  const version = manifest.omnidiffVersion;
   if (!version) {
-    fail('package.json has no `codediffVersion` field to pin the download to.');
+    fail('package.json has no `omnidiffVersion` field to pin the download to.');
   }
 
   const windows = target.startsWith('win32');
-  const archive = `codediff-${triple}.${windows ? 'zip' : 'tar.gz'}`;
+  const archive = `omnidiff-${triple}.${windows ? 'zip' : 'tar.gz'}`;
   const base = `https://github.com/${REPOSITORY}/releases/download/${version}`;
 
   console.log(`fetch-binary: ${archive} from ${version}`);
   const bytes = await download(`${base}/${archive}`);
 
   // Checked against the release's own manifest rather than a hash committed here: this script has
-  // to keep working when `codediffVersion` is bumped, and a hardcoded digest would have to be
+  // to keep working when `omnidiffVersion` is bumped, and a hardcoded digest would have to be
   // updated in lockstep or silently start failing.
   const sums = (await download(`${base}/SHA256SUMS.txt`)).toString('utf8');
   const expected = sums
@@ -131,7 +129,7 @@ async function main() {
   // Set here as well as at activation. `vsce` does not reliably carry mode bits into the ZIP, so
   // the extension chmods what it finds - but starting from a non-executable file makes the
   // packaged VSIX depend entirely on that fallback working.
-  const binary = join(binDirectory, windows ? 'codediff.exe' : 'codediff');
+  const binary = join(binDirectory, windows ? 'omnidiff.exe' : 'omnidiff');
   execFileSync('chmod', ['755', binary]);
   console.log(`fetch-binary: wrote ${binary}`);
 }

@@ -1,0 +1,73 @@
+# Bootstrap and preflight, run by hand. Prints the Azure DevOps profile id of the Entra identity
+# this repository publishes as - the value the Marketplace publisher's member search wants - and
+# then checks that the identity actually has publish rights on the publisher.
+#
+# **Why this has to be a workflow rather than two lines on a laptop.** The identity is a
+# *user-assigned managed identity*, which has no secret to sign in with: `az login --identity`
+# works only from inside Azure, where the instance metadata endpoint exists. The one place that
+# can authenticate as it is a job holding a GitHub OIDC token the federated credential trusts -
+# which is this job, and which is exactly how the publish job authenticates too. So a green run
+# here also proves the federated credential, the environment name and the two secrets all line up,
+# before any of it matters to a release.
+#
+# Safe to re-run, and safe to leave in place: it publishes nothing and writes nothing.
+name: Entra identity id
+
+on: workflow_dispatch
+
+jobs:
+  profile:
+    name: profile id, and publish rights
+    runs-on: ubuntu-latest
+    environment: marketplace-publish
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/setup-node@v7
+        with:
+          # 22 because @vscode/vsce declares `engines: node >= 22`; see the note in ci.yml.
+          node-version: 22
+
+      - name: The Entra identity is configured
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        run: |
+          if [ -z "$AZURE_CLIENT_ID" ] || [ -z "$AZURE_TENANT_ID" ]; then
+            echo "::error::AZURE_CLIENT_ID and AZURE_TENANT_ID must both be set as repository"
+            echo "::error::secrets. See CONTRIBUTING.md."
+            exit 1
+          fi
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+
+      # 499b84ac-1321-427f-aa17-267ca6975798 is Azure DevOps' own resource id.
+      #
+      # `VSS011031: There is no profile for the authenticated user` here means the identity has
+      # not been added to an Azure DevOps organization yet. A service principal does not appear in
+      # Azure DevOps on its own - it has to be added explicitly, because it cannot sign in
+      # interactively - and this call reads a profile rather than creating one.
+      - name: Azure DevOps profile
+        run: |
+          id=$(az rest \
+            -u https://app.vssps.visualstudio.com/_apis/profile/profiles/me \
+            --resource 499b84ac-1321-427f-aa17-267ca6975798 \
+            --query id -o tsv)
+          echo "Add this id as a Contributor on the ivankovic publisher:"
+          echo "  $id"
+          echo "### Azure DevOps profile id" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "$id" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      # The whole Marketplace auth chain, end to end, without publishing: it fails unless the
+      # identity above is a member of the `ivankovic` publisher with a role that can publish. Worth
+      # having because the alternative way to discover that is a release, and a Marketplace version
+      # number can be superseded but never reused.
+      - name: The identity can publish as ivankovic
+        run: npx --yes @vscode/vsce verify-pat ivankovic --azure-credential

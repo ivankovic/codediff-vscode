@@ -10,12 +10,12 @@ permissions:
   contents: write
 
 jobs:
-  # One VSIX per platform, each carrying the codediff binary for that platform. The version comes
-  # from `codediffVersion` in package.json - a pinned tag, never `latest`, so a rebuild of the same
+  # One VSIX per platform, each carrying the omnidiff binary for that platform. The version comes
+  # from `omnidiffVersion` in package.json - a pinned tag, never `latest`, so a rebuild of the same
   # extension tag produces the same package.
   #
   # The bundle exists mainly for one failure it removes: a VS Code launched from Finder or the Dock
-  # does not inherit a login shell's PATH, so a codediff installed to ~/.cargo/bin is invisible to
+  # does not inherit a login shell's PATH, so an omnidiff installed to ~/.cargo/bin is invisible to
   # it and the extension reports a missing binary the user can plainly run in a terminal.
   platform:
     name: ${{ matrix.target }}
@@ -37,20 +37,20 @@ jobs:
           - darwin-arm64
           - win32-x64
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           # 22 because @vscode/vsce declares `engines: node >= 22`; see the note in ci.yml.
           node-version: 22
           cache: npm
       - run: npm ci
 
-      # Verifies the download against the codediff release's own SHA256SUMS.txt, which that
+      # Verifies the download against the omnidiff release's own SHA256SUMS.txt, which that
       # repository's release workflow publishes for consumers like this one.
-      - name: Fetch the pinned codediff binary
+      - name: Fetch the pinned omnidiff binary
         run: npm run fetch-binary -- ${{ matrix.target }}
 
-      - run: npx --yes @vscode/vsce package --target ${{ matrix.target }} --out codediff-${{ matrix.target }}.vsix
+      - run: npx --yes @vscode/vsce package --target ${{ matrix.target }} --out omnidiff-${{ matrix.target }}.vsix
 
       # Read the mode out of the packaged archive rather than trusting that it survived. A VSIX is
       # a ZIP, and ZIP carries Unix mode bits only if the writer sets them; if vsce drops them the
@@ -60,18 +60,18 @@ jobs:
       - name: Bundled binary is executable inside the VSIX
         if: matrix.target != 'win32-x64'
         run: |
-          unzip -Z codediff-${{ matrix.target }}.vsix extension/bin/codediff
-          unzip -Z codediff-${{ matrix.target }}.vsix extension/bin/codediff | grep -qE '^-.{2}x' \
+          unzip -Z omnidiff-${{ matrix.target }}.vsix extension/bin/omnidiff
+          unzip -Z omnidiff-${{ matrix.target }}.vsix extension/bin/omnidiff | grep -qE '^-.{2}x' \
             || { echo "::error::bundled binary is not executable inside the VSIX"; exit 1; }
 
       - name: Bundled binary is present (Windows)
         if: matrix.target == 'win32-x64'
-        run: unzip -Z1 codediff-win32-x64.vsix | grep -qx 'extension/bin/codediff.exe'
+        run: unzip -Z1 omnidiff-win32-x64.vsix | grep -qx 'extension/bin/omnidiff.exe'
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: vsix-${{ matrix.target }}
-          path: codediff-${{ matrix.target }}.vsix
+          path: omnidiff-${{ matrix.target }}.vsix
 
   # The target-less VSIX, for every architecture with no build of its own - arm64 Windows, Alpine,
   # anything new. It carries no binary and falls through to PATH, which is how the extension
@@ -80,24 +80,24 @@ jobs:
     name: fallback (no binary)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           # 22 because @vscode/vsce declares `engines: node >= 22`; see the note in ci.yml.
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npx --yes @vscode/vsce package --out codediff-fallback.vsix
+      - run: npx --yes @vscode/vsce package --out omnidiff-fallback.vsix
       - name: Carries no binary
         run: |
-          if unzip -Z1 codediff-fallback.vsix | grep -q '^extension/bin/'; then
+          if unzip -Z1 omnidiff-fallback.vsix | grep -q '^extension/bin/'; then
             echo "::error::the fallback VSIX contains a bundled binary"
             exit 1
           fi
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: vsix-fallback
-          path: codediff-fallback.vsix
+          path: omnidiff-fallback.vsix
 
   # Attaches every VSIX to the GitHub release. Publishing to the Marketplace or Open VSX is a
   # separate, deliberate step and is not automated here - it needs credentials this repository does
@@ -108,7 +108,7 @@ jobs:
     needs: [platform, fallback]
     if: github.ref_type == 'tag'
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: vsix-*
           merge-multiple: true
@@ -116,3 +116,123 @@ jobs:
         with:
           files: "*.vsix"
           generate_release_notes: true
+
+  # Publishing is two jobs, not one, and neither depends on the other. A Marketplace publish that
+  # succeeds followed by an Open VSX publish that fails would, in a single job, leave the re-run
+  # dead on "version already exists" - and a version can never be republished. Split, the re-run
+  # touches only the registry that actually failed.
+  #
+  # Both publish the VSIXs the jobs above built rather than repackaging: the execute-bit check and
+  # the no-binary-in-the-fallback check ran on those exact files, so those are the files that
+  # should reach users.
+  # Authenticates with Microsoft Entra ID over OIDC, not with a personal access token. Azure
+  # DevOps retires global PATs - the "All accessible organizations" kind the Marketplace requires
+  # - on 2026-12-01, and organization-scoped PATs are not accepted for publishing
+  # (microsoft/vscode#322741 is the open request for that). Entra is the path Microsoft documents
+  # for after that date, and it stores no secret at all: the federated credential trades this
+  # workflow's OIDC token for a short-lived one at run time.
+  #
+  # `environment:` is load-bearing, not decoration. The federated credential is issued against a
+  # subject that names this repository *and this environment*, so a job running without it - or
+  # under a different name - presents a token Entra will not exchange.
+  publish-marketplace:
+    name: publish to the VS Marketplace
+    runs-on: ubuntu-latest
+    needs: [platform, fallback]
+    if: github.ref_type == 'tag'
+    environment: marketplace-publish
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/setup-node@v7
+        with:
+          # 22 because @vscode/vsce declares `engines: node >= 22`; see the note in ci.yml.
+          node-version: 22
+
+      # Neither value is a secret in the usual sense - they are identifiers, not credentials - but
+      # an unset one is an empty string rather than an error, and `azure/login` with an empty
+      # client id fails inside an OIDC exchange whose message names nothing useful. Say which is
+      # missing, before anything is attempted.
+      - name: The Entra identity is configured
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        run: |
+          if [ -z "$AZURE_CLIENT_ID" ] || [ -z "$AZURE_TENANT_ID" ]; then
+            echo "::error::AZURE_CLIENT_ID and AZURE_TENANT_ID must both be set as repository"
+            echo "::error::secrets, and the identity they name must be a Contributor on the"
+            echo "::error::ivankovic publisher. See CONTRIBUTING.md."
+            exit 1
+          fi
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: vsix-*
+          merge-multiple: true
+
+      # `allow-no-subscriptions` because the identity needs no role on any Azure resource: the
+      # only thing it is ever used for is presenting an Entra token to the Marketplace.
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+
+      # One invocation for all six. `--packagePath` is variadic - one flag, many paths - which is
+      # how a platform-specific extension's builds land as one version rather than six racing
+      # ones. Repeating the flag is not the same thing and is not what vsce documents.
+      #
+      # `--skip-duplicate` makes a re-run survivable. The only ways this job runs are a fresh tag
+      # and a manual re-run of a failed release, and in both an already-published file is exactly
+      # the thing to step over - a Marketplace version can never be republished.
+      #
+      # `--azure-credential` is what tells vsce to use the token `azure/login` just put in the
+      # environment instead of looking for VSCE_PAT.
+      - name: vsce publish
+        run: |
+          ls -la *.vsix
+          npx --yes @vscode/vsce publish --skip-duplicate --azure-credential --packagePath *.vsix
+
+  # Open VSX is what VSCodium, Cursor, Windsurf and the other non-Microsoft builds install from.
+  # Skipping it would cut out a real share of users for one more job.
+  publish-openvsx:
+    name: publish to Open VSX
+    runs-on: ubuntu-latest
+    needs: [platform, fallback]
+    if: github.ref_type == 'tag'
+    steps:
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: OVSX_PAT is set
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: |
+          if [ -z "$OVSX_PAT" ]; then
+            echo "::error::OVSX_PAT is not set. Create an Eclipse Foundation account, sign the"
+            echo "::error::publisher agreement, generate a token at https://open-vsx.org/user-settings/tokens"
+            echo "::error::and add it as a repository secret named OVSX_PAT. See CONTRIBUTING.md."
+            exit 1
+          fi
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: vsix-*
+          merge-multiple: true
+
+      # Idempotent on purpose: the namespace has to exist before the first publish and must not
+      # break every release after it. `create-namespace` fails with a 4xx once it is there, which
+      # is the expected outcome on all but the first run.
+      - name: Ensure the namespace exists
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: npx --yes ovsx create-namespace ivankovic -p "$OVSX_PAT" || echo "namespace already exists"
+
+      # Same shape as the Marketplace job: one variadic `--packagePath`, and `--skip-duplicate`
+      # so that a re-run after a half-finished publish steps over what already landed.
+      - name: ovsx publish
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: npx --yes ovsx publish --skip-duplicate --packagePath *.vsix -p "$OVSX_PAT"
