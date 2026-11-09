@@ -8,6 +8,13 @@ Notable changes to the OmniDiff extension (published as CodeDiff, `ivankovic.cod
 Changes to the `omnidiff` CLI itself live in
 [its own repository](https://github.com/ivankovic/omnidiff); this file covers the extension.
 
+## [Unreleased]
+
+### Changed
+
+- **Requires VS Code 1.101 or later** (was 1.85), the first release whose extension host runs Node
+  22. An older VS Code keeps the last version that supported it.
+
 ## [0.1.0] - 2026-10-01
 
 ### Changed

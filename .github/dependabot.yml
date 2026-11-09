@@ -7,6 +7,14 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    # The type packages describe the oldest VS Code `engines.vscode` allows (1.101, whose extension
+    # host runs Node 22.15), not the newest: newer types would let the code call APIs that VS Code
+    # lacks, and vsce refuses an @types/vscode newer than the engine. They move when the engine does.
+    ignore:
+      - dependency-name: "@types/vscode"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
 
   # The actions used by .github/workflows/ci.yml and release.yml (actions/checkout,
   # actions/setup-node, actions/upload-artifact, actions/download-artifact,

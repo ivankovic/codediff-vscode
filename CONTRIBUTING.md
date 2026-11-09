@@ -116,16 +116,20 @@ binary.
 CI builds only the binary-free fallback VSIX, so a pull request never depends on a published tag of
 another repository. The five platform VSIXs are built in `release.yml`, on a tag.
 
-**The jobs that run `vsce` are pinned to Node 22, not the 20 the rest of CI uses**, because
-`@vscode/vsce` declares `engines: node >= 22`. npm only warns about an engine mismatch, so those
-jobs ran on 20 and worked by luck: vsce 4 calls `util.styleText`, which recent 20.x happens to
-carry and 18 does not.
+**All of CI runs on Node 22.** That is two requirements meeting: `@vscode/vsce` declares
+`engines: node >= 22` (npm only warns about an engine mismatch, and vsce 4 calls `util.styleText`,
+which 18 lacks), and Node 22 is the extension host's Node too.
 
-The test matrix is [18, 20, 22] — the extension host's Node, which is a different question from the
-packaging tool's, but which now has to include 22 for a reason of its own: `node --test <directory>`
-means "run that path as a file" there, not "every test file under it". `npm test` names the files
-with a glob instead. On a [18, 20] matrix that break was invisible, and it is the failure mode to
-expect from the test runner generally — it is the one part of Node that is still changing shape.
+The extension host's Node follows `engines.vscode`, not the Node on anyone's machine: VS Code runs
+extensions on the Node inside its Electron. `engines.vscode` is `^1.101.0`, the first release on
+Electron 35 / Node 22.15, so the code may use what Node 22 has. `@types/vscode` is held at `~1.101.0`
+and `@types/node` at `~22.15.0` to match, so the compiler rejects an API the oldest supported VS
+Code lacks; `.github/dependabot.yml` keeps them there. Raising the floor means moving all three
+together, and adding the new Node major to the test matrix while VS Code ships both.
+
+The test matrix is the extension host's Node, [22]. Watch it for the test runner in particular:
+`node --test <directory>` means "run that path as a file" on 22, not "every test file under it", so
+`npm test` names the files with a glob. It is the one part of Node that is still changing shape.
 
 ## The icon
 
