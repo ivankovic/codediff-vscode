@@ -1,6 +1,8 @@
-// Flat config (ESLint 9). Type-aware linting is deliberately not enabled: tsc already runs with
+// Flat config. Type-aware linting is deliberately not enabled: tsc already runs with
 // `strict` plus noUnusedLocals/noImplicitReturns/noUncheckedIndexedAccess in CI, so the type-aware
 // rules would be a second, slower opinion about things the compiler already fails on.
+// `@eslint/js` is a devDependency of its own: ESLint 10 stopped depending on it, so the import
+// that used to resolve through eslint's own node_modules now has to be declared.
 import js from '@eslint/js';
 import tseslint from '@typescript-eslint/eslint-plugin';
 import tsparser from '@typescript-eslint/parser';
