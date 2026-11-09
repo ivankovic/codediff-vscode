@@ -1,7 +1,7 @@
-# Contributing to CodeDiff for VS Code
+# Contributing to OmniDiff for VS Code
 
 This extension is a thin client. It shells out to the
-[codediff](https://github.com/ivankovic/codediff) binary and paints what comes back; every
+[omnidiff](https://github.com/ivankovic/omnidiff) binary and paints what comes back; every
 interesting decision about *what* a diff says lives in that repository. A bug about a diff being
 wrong belongs there. A bug about a highlight landing in the wrong place, a command misbehaving, or
 an error message being unhelpful belongs here.
@@ -16,7 +16,7 @@ npm test
 ```
 
 Press <kbd>F5</kbd> in VS Code to launch an Extension Development Host with the extension loaded.
-You need a `codediff` binary on `PATH` to do anything useful in it.
+You need an `omnidiff` binary on `PATH` to do anything useful in it.
 
 ## The three checks CI gates on
 
@@ -37,9 +37,9 @@ needs Node 22; see [Releasing](#releasing).
 | File | Imports `vscode`? | Why |
 | --- | --- | --- |
 | `src/columns.ts` | no | Imports **nothing**. Byte → UTF-16 conversion. |
-| `src/codediff.ts` | no | Spawning and JSON validation. |
+| `src/omnidiff.ts` | no | Spawning and JSON validation. |
 | `src/git.ts` | no | `rev-parse` / `git show`, and writing a blob out under its real basename. |
-| `src/binary.ts` | no | Which `codediff` to run: setting → bundled → `PATH`. |
+| `src/binary.ts` | no | Which `omnidiff` to run: setting → bundled → `PATH`. |
 | `src/decorations.ts` | yes | Hunks → `TextEditorDecorationType`. |
 | `src/extension.ts` | yes | Commands and editor glue. |
 
@@ -54,14 +54,14 @@ needs, plus three lines in `extension.ts` that fetch it.
 
 ## Tests
 
-`src/test/columns.test.ts` is the one to be careful with. codediff reports **byte** columns; VS
+`src/test/columns.test.ts` is the one to be careful with. omnidiff reports **byte** columns; VS
 Code wants **UTF-16 code units**. They are identical on any all-ASCII line, so a broken conversion
 passes every casual test and then mis-highlights every line containing an accent, an ideograph or
 an emoji. The suite covers two-byte, three-byte and astral characters, out-of-range clamping,
 mid-character rounding, and a per-byte-offset agreement check against `Buffer.byteLength` across a
 mixed line. Do not delete those for being slow — the whole file runs in milliseconds.
 
-**Running it drops a `.codediff.toml` in this checkout.** codediff stores its settings in a
+**Running it drops a `.omnidiff.toml` in this checkout.** omnidiff stores its settings in a
 dotfile in whatever directory it runs in — there is no user-level config yet — so any invocation
 from here leaves one behind. It is in `.gitignore` and `.vscodeignore`; delete it freely, and do
 not commit it.
@@ -71,27 +71,27 @@ integration test below, does **not** skip when its dependency is missing: git is
 of the commands it covers, so a machine without it should fail here rather than quietly pass. Two of
 its cases exist for reasons that are easy to undo by accident — `git show` output is read as a
 `Buffer` because decoding it as UTF-8 corrupts any file that is not UTF-8, and the materialised file
-keeps its original basename because codediff's language detection reads the path.
+keeps its original basename because omnidiff's language detection reads the path.
 
-`src/test/integration.test.ts` runs the real binary and **skips itself when codediff is not on
-`PATH`**, which includes CI. It is a local-development check, not a gate: installing codediff in CI
+`src/test/integration.test.ts` runs the real binary and **skips itself when omnidiff is not on
+`PATH`**, which includes CI. It is a local-development check, not a gate: installing omnidiff in CI
 would add minutes of Rust compilation to every run for one assertion the unit tests already cover
 apart from the spawn. Run it locally before touching anything about spawning or JSON handling.
 
 ## Style
 
 * Every source file carries the AGPL header. Copy it from an existing file when adding one.
-* Comments explain *why*, not *what*. The main codediff repository's
-  [`CONTRIBUTING.md`](https://github.com/ivankovic/codediff/blob/main/CONTRIBUTING.md) sets the
+* Comments explain *why*, not *what*. The main omnidiff repository's
+  [`CONTRIBUTING.md`](https://github.com/ivankovic/omnidiff/blob/main/CONTRIBUTING.md) sets the
   house style and it applies here too.
 * No `any`, and no `as SomeType` to silence the compiler on data that came from outside the
-  process. `parseDiff` validates codediff's output at the boundary precisely so that nothing
+  process. `parseDiff` validates omnidiff's output at the boundary precisely so that nothing
   downstream has to guess.
 
 ## Bundling the binary
 
-`scripts/fetch-binary.mjs <vsce-target>` downloads the codediff release pinned by
-`codediffVersion` in package.json into `bin/`, verifying it against that release's
+`scripts/fetch-binary.mjs <vsce-target>` downloads the omnidiff release pinned by
+`omnidiffVersion` in package.json into `bin/`, verifying it against that release's
 `SHA256SUMS.txt`. `bin/` is gitignored — it is a build input, not source.
 
 Two things here are easy to get wrong and are checked rather than assumed:
@@ -106,10 +106,12 @@ Two things here are easy to get wrong and are checked rather than assumed:
   and that table list the same targets, because a target in one but not the other either fails the
   build or silently stops publishing a platform.
 
-The pinned version is `v0.0.13`, and it now carries everything `fetch-binary` needs: a
-`SHA256SUMS.txt` and all five archives, `aarch64-unknown-linux-gnu` among them. v0.0.12 predates
-both, so pinning back to it would 404 — which is the designed failure, rather than quietly
-producing a VSIX with no binary.
+`omnidiffVersion` in `package.json` is the pin, and moving it is a deliberate, separate release of
+this extension: a platform build ships a frozen CLI, so nobody gets a newer omnidiff until that
+happens. A release is only usable as a pin if it carries a `SHA256SUMS.txt` and all five archives,
+`aarch64-unknown-linux-gnu` among them — omnidiff's release workflow gained both in v0.0.13, so
+anything older 404s, which is the designed failure rather than quietly producing a VSIX with no
+binary.
 
 CI builds only the binary-free fallback VSIX, so a pull request never depends on a published tag of
 another repository. The five platform VSIXs are built in `release.yml`, on a tag.
@@ -151,18 +153,137 @@ section than let a number through.
 
 ### Credentials, once
 
-Both tokens live as repository secrets, not on anybody's laptop. The publish jobs check each one is
-non-empty before they do anything, because an unset secret is an empty string rather than an error
-and an empty token fails much later, as an HTTP 401 that reads like an outage.
+The two registries authenticate differently, and only Open VSX uses a token.
 
-**`VSCE_PAT`** — the Marketplace:
+**The Marketplace — Microsoft Entra ID, no token.** Azure DevOps retires *global* personal access
+tokens on **2026-12-01**, and a global PAT — the "All accessible organizations" kind — is the only
+sort the Marketplace has ever accepted. Organization-scoped tokens are not accepted for publishing;
+[microsoft/vscode#322741](https://github.com/microsoft/vscode/issues/322741) is the open request to
+change that. So the PAT route has an expiry date on it and is not worth setting up. Entra with
+workload identity federation is what replaces it, and it stores no secret at all: `azure/login`
+trades the workflow's own OIDC token for a short-lived one at run time.
 
-1. An Azure DevOps organization, then a personal access token with **Organization: All accessible
-   organizations** and **Scopes: Custom defined → Marketplace → Manage**. Both are easy to get
-   wrong and the failure is a permissions error much later.
-2. A publisher at <https://marketplace.visualstudio.com/manage> whose ID is `ivankovic`, matching
-   `publisher` in `package.json`. The ID cannot be changed afterwards.
-3. Add the token as the `VSCE_PAT` repository secret.
+The whole Azure side is `az`, which on Ubuntu is `sudo apt-get install azure-cli` from Microsoft's
+repository — see their [install page](https://learn.microsoft.com/cli/azure/install-azure-cli-linux).
+
+1. A **user-assigned managed identity**. Not an app registration — those authenticate fine and then
+   fail at publish with `InvalidAccessException: The requested operation is not allowed`.
+
+   ```sh
+   az login
+   az group create --name omnidiff-publish --location westeurope
+   az identity create --name omnidiff-marketplace --resource-group omnidiff-publish \
+     --query '{clientId:clientId, tenantId:tenantId}' -o table
+   ```
+
+2. A federated credential on it, trusting this repository's `marketplace-publish` environment.
+   Entra matches the subject as an exact string, and there are two ways to get it wrong.
+
+   **Environment, not branch or tag** — that is the part of the subject the jobs control, by
+   declaring `environment: marketplace-publish`.
+
+   **The owner and repository carry their numeric ids.** Every repository created after
+   2026-07-15 gets GitHub's *immutable* subject format, which appends the owner id and repo id so
+   that a rename or a recycled name cannot mint a matching token. A subject written from the names
+   alone is rejected with `AADSTS700213: No matching federated identity record found`. Read the
+   ids off the API rather than typing them:
+
+   ```sh
+   owner=$(curl -sS https://api.github.com/users/ivankovic | jq -r .id)
+   repo=$(curl -sS https://api.github.com/repos/ivankovic/omnidiff-vscode | jq -r .id)
+
+   az identity federated-credential create \
+     --name github-marketplace-publish \
+     --identity-name omnidiff-marketplace --resource-group omnidiff-publish \
+     --issuer https://token.actions.githubusercontent.com \
+     --subject "repo:ivankovic@$owner/omnidiff-vscode@$repo:environment:marketplace-publish" \
+     --audiences api://AzureADTokenExchange
+   ```
+
+   If it is already wrong, the failing run prints the subject it actually presented — copy that
+   verbatim into `az identity federated-credential update --subject`.
+
+   The names above are for a fresh setup. The identity this repository publishes with was created
+   before the rename to OmniDiff and kept its names, because renaming it would change its client
+   id; `az identity list -o table` shows them. The rename did change the repository name in the
+   subject, so the credential was updated to `omnidiff-vscode` on 2026-10-01.
+
+3. The GitHub side: an environment named `marketplace-publish`
+   (<https://github.com/ivankovic/omnidiff-vscode/settings/environments>, no protection rules
+   needed), and the Client ID and Tenant ID as the `AZURE_CLIENT_ID` and `AZURE_TENANT_ID`
+   repository secrets. They are identifiers rather than credentials, but each job checks both are
+   non-empty first, because an unset one is an empty string and fails later inside an OIDC exchange
+   whose error names nothing useful.
+
+4. **Add the identity to an Azure DevOps organization.** Entra removes the PAT, not the
+   organization. A service principal does not appear in Azure DevOps on its own — Microsoft calls
+   this *materialization*, and it has to be explicit, because a service principal cannot sign in
+   interactively the way a person can. Until it is done, every Azure DevOps call answers
+   `VSS011031: There is no profile for the authenticated user in the system`.
+
+   **Creating the organization is the one step with no CLI.** `az devops` manages projects,
+   teams and pipelines inside an organization; it has no command that makes one. Create it at
+   <https://aex.dev.azure.com> — any name, it holds no code and no pipelines. It has to be
+   connected to the same tenant the identity lives in, which one created while signed in as
+   yourself will be.
+
+   Adding the identity *is* scriptable, through the ServicePrincipalEntitlements API. Note
+   `originId`: it is the identity's **principalId**, the service principal's object id, not its
+   client id — the two are easy to confuse and the wrong one fails as "not found".
+
+   ```sh
+   org=<the organization name>
+   principal=$(az identity show --name omnidiff-marketplace \
+     --resource-group omnidiff-publish --query principalId -o tsv)
+
+   az rest --method post \
+     --resource 499b84ac-1321-427f-aa17-267ca6975798 \
+     --url "https://vsaex.dev.azure.com/$org/_apis/serviceprincipalentitlements?api-version=7.1-preview.1" \
+     --headers Content-Type=application/json \
+     --body "{
+       \"accessLevel\": {\"accountLicenseType\": \"stakeholder\"},
+       \"servicePrincipal\": {
+         \"origin\": \"aad\",
+         \"originId\": \"$principal\",
+         \"subjectKind\": \"servicePrincipal\"
+       }
+     }"
+   ```
+
+   `stakeholder` is the free access level and is what Microsoft's own example uses. If a later
+   publish fails on licensing, `express` is Basic, free for the first five identities in an
+   organization.
+
+   That call can fail on *the caller* rather than on the identity being added: `Identity <guid>
+   has not been materialized, please use interactive login over the browser first`, where the
+   guid is your own user. Materialization applies to people too — an Entra token for a user
+   Azure DevOps has never seen is refused. Check whether the guid is yours with
+   `az ad signed-in-user show --query id`; if it is, do this step in the portal instead
+   (**Organization Settings → Users → Add users**, entering the identity's *display name*,
+   `omnidiff-marketplace`), where the browser session is an identity the organization already
+   knows.
+
+   Also confirm under **Organization Settings → Microsoft Entra** that the organization is
+   connected to the same tenant as the identity. An organization created with a personal
+   Microsoft account is not backed by a directory, and a managed identity cannot be added to it
+   at all — identities can only come from the tenant the organization is connected to.
+
+5. **Read the identity's Azure DevOps profile id**, by running the **Entra identity id** workflow
+   (`.github/workflows/entra-identity-id.yml`) from the Actions tab. It prints an id to the run
+   summary.
+
+   This cannot be done from a laptop. A user-assigned managed identity has no secret to sign in
+   with — `az login --identity` reaches the instance metadata endpoint, which exists only inside
+   Azure — so the one thing that can authenticate as it is a job holding an OIDC token the
+   federated credential trusts. A green run also proves steps 2, 3 and 4 all line up, before a
+   release depends on it.
+
+   **Keep that id.** It is the only identifier the publisher's member search recognises; the Client
+   ID, the Tenant ID and the resource ID all come back empty.
+
+6. A publisher at <https://marketplace.visualstudio.com/manage> whose ID is `ivankovic`, matching
+   `publisher` in `package.json` (the ID cannot be changed afterwards), then add that id as a
+   member with the **Contributor** role.
 
 **`OVSX_PAT`** — Open VSX, which is what VSCodium, Cursor and Windsurf install from:
 
@@ -177,13 +298,16 @@ If a publish job fails and you would rather finish it locally, publish the artef
 GitHub Release rather than building new ones:
 
 ```sh
-vsce publish --skip-duplicate --packagePath *.vsix
+az login                                  # as the identity, or as yourself if you are a publisher member
+vsce publish --skip-duplicate --azure-credential --packagePath *.vsix
 ovsx publish --skip-duplicate --packagePath *.vsix -p "$OVSX_PAT"
 ```
 
 `--packagePath` is variadic — one flag, many paths — which is how the six builds land as one
 version. `--skip-duplicate` steps over whatever the failed job already published; it is safe here
 precisely because nothing else can make this command run twice on one version.
+`--azure-credential` is what makes `vsce` read the Entra token `az login` left behind rather than
+look for a `VSCE_PAT` that no longer exists.
 
 If a publish got far enough to be *partly* wrong rather than partly done — a bad README, the wrong
 binary in a target — the answer is a new version, not a retry. A Marketplace version can be
@@ -196,5 +320,5 @@ Node 22 — as does anything running `vsce` — and it deletes `bin/` afterwards
 
 ## Licence
 
-By contributing you agree that your contributions are licensed under AGPL-3.0-or-later, the same
-licence as [`LICENSE`](LICENSE) and as codediff itself.
+By contributing you agree that your contributions are licensed under AGPL-3.0-only, the same
+licence as [`LICENSE`](LICENSE) and as omnidiff itself.

@@ -1,11 +1,21 @@
 # Changelog
 
-Notable changes to the CodeDiff extension. The format follows
+Notable changes to the OmniDiff extension (published as CodeDiff, `ivankovic.codediff`, up to
+0.0.1). The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-Changes to the `codediff` CLI itself live in
-[its own repository](https://github.com/ivankovic/codediff); this file covers the extension.
+Changes to the `omnidiff` CLI itself live in
+[its own repository](https://github.com/ivankovic/omnidiff); this file covers the extension.
+
+## [0.1.0] - 2026-10-01
+
+### Changed
+
+- **Renamed from CodeDiff to OmniDiff**, following the CLI (v0.2.0). This is a new extension,
+  `ivankovic.omnidiff`; the commands, settings and colour IDs are `omnidiff.*`. On first activation,
+  any `codediff.*` setting is copied to its `omnidiff.*` counterpart where that one is unset. The
+  bundled binary is `omnidiff` v0.2.0, and a `PATH` lookup looks for `omnidiff`.
 
 ## [0.0.1] - 2026-09-17
 
@@ -19,8 +29,8 @@ and Open VSX.
   update and move, with a "moved to line N" hover and the nearest enclosing declaration.
 - `CodeDiff: Diff Two Files…`, `Diff With HEAD`, `Diff With Revision…`, `Diff With Last Saved` and
   `Clear Highlights`, the git-aware three also on the Source Control and editor-tab context menus.
-- Platform-specific builds that bundle the `codediff` binary for Linux, macOS and Windows x64,
-  falling back to a `PATH` lookup everywhere else. This removes one failure in particular: a VS Code
+- Platform-specific builds that bundle the `codediff` binary (v0.0.14) for Linux, macOS and
+  Windows x64, falling back to a `PATH` lookup everywhere else. This removes one failure in particular: a VS Code
   launched from Finder or the Dock does not inherit a login shell's `PATH`, so a binary installed to
   `~/.cargo/bin` is invisible to it.
 - A prompt with an install link when no binary can be found at all.
